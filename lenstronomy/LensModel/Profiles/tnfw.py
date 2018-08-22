@@ -311,84 +311,48 @@ class TNFW(object):
         :type x: float >0
         """
 
-        def cos_func(y):
-            if isinstance(y, float) or isinstance(y, int):
-                if y > 1:
-                    return np.arccosh(y)
-                else:
-                    return np.arccos(y)
-            else:
-                values = np.ones_like(y)
-                inds1 = np.where(y < 1)
-                inds2 = np.where(y > 1)
-                values[inds1] = np.arccos(y[inds1])
-                # values[inds2] = np.arccosh(y[inds2])
-                values[inds2] = np.arccos((1 - y[inds2]) ** .5)
-                return values
+        c = 0.0001
 
-        def nfw_func(x):
-            if isinstance(x,float) or isinstance(x,int):
-                if x<1:
-                    return np.log(x / 2.) ** 2 - np.arccosh(1. / x) ** 2
-                else:
-                    return np.log(x / 2.)**2 - np.arccos(1. /x)**2
-            else:
-                inds1 = np.where(x < 1)
-                inds2 = np.where(x >= 1)
-                y = np.zeros_like(x)
-                y[inds1] = np.log(x[inds1] / 2.) ** 2 - np.arccosh(1. / x[inds1]) ** 2
-                y[inds2] = np.log(x[inds2] / 2.) ** 2 - np.arccosh(1. / x[inds2]) ** 2
+        if isinstance(X, float) or isinstance(X, int):
+            X = max(c, X)
+        else:
+            X[np.where(X < c)] = c
 
-                return y
+        u = X ** 2
+        t2 = tau ** 2
+        Lx = self.L(u ** .5, tau)
 
-        def tnfw_func(x,tau):
-
-            u = x**2
-            t2 = tau**2
-            Lx = self.L(u**.5, tau)
-
-            return (t2 + 1) ** -2 * (
+        return (t2 + 1) ** -2 * (
                 2 * t2 * np.pi * (tau - (t2 + u) ** .5 + tau * np.log(tau + (t2 + u) ** .5))
                 +
                 2 * (t2 - 1) * tau * (t2 + u) ** .5 * Lx
                 +
                 t2 * (t2 - 1) * Lx ** 2
                 +
-                4 * t2 * (u - 1) * self.F(u**.5)
+                4 * t2 * (u - 1) * self.F(u ** .5)
                 +
-                t2 * (t2 - 1) * (cos_func(u ** -0.5)) ** 2
+                t2 * (t2 - 1) * (self._cos_func(u ** -0.5))
                 +
                 t2 * ((t2 - 1) * np.log(tau) - t2 - 1) * np.log(u)
                 -
-                t2 * (
-                (t2 - 1) * np.log(tau) * np.log(4 * tau) + 2 * np.log(0.5 * tau) - 2 * tau * (tau - np.pi) * np.log(
+                t2 * ((t2 - 1) * np.log(tau) * np.log(4 * tau) + 2 * np.log(0.5 * tau) - 2 * tau * (
+                            tau - np.pi) * np.log(
                     tau * 2)))
 
-        c = 1e-9
-        rescale = 1
-
-        if np.any(X-c<1):
-
-            warnings.warn('Truncated NFW potential not yet implemented for x<1. Using the expression for the NFW '
-                          'potential in this regime isntead.')
-            rescale = tnfw_func(1.00001,tau)*nfw_func(1)**-1
-
-        if isinstance(X,float) or isinstance(X,int):
-            if X<1:
-                X = min(X,0.001)
-                return nfw_func(X)*rescale
+    def _cos_func(self, y):
+        if isinstance(y, float) or isinstance(y, int):
+            if y > 1:
+                return -np.arccos(y**-1)**2
             else:
-                return tnfw_func(X,tau)
+                return np.arccos(y)**2
         else:
-
-            X[np.where(X<0.001)] = 0.001
-
-            values = np.zeros_like(X)
-            inds1,inds2 = np.where(X<1),np.where(X>=1)
-            values[inds1] = nfw_func(X[inds1])*rescale
-            values[inds2] = tnfw_func(X[inds2],tau)
-
+            values = np.ones_like(y)
+            inds1 = np.where(y < 1)
+            inds2 = np.where(y > 1)
+            values[inds1] = np.arccos(y[inds1])**2
+            values[inds2] = -(np.arccos((y[inds2]) ** -1))**2
             return values
+
 
     def _alpha2rho0(self, theta_Rs, Rs):
         """
@@ -408,3 +372,5 @@ class TNFW(object):
         """
         theta_Rs = rho0 * (4 * Rs ** 2 * (1 + np.log(1. / 2.)))
         return theta_Rs
+
+
