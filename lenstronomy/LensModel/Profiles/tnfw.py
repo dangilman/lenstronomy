@@ -340,6 +340,7 @@ class TNFW(object):
                     tau * 2)))
 
     def _cosfunc(self,x):
+
         if isinstance(x, int) or isinstance(x, float):
             if x > 1:
                 vals = -np.arctan((x ** 2 - 1) ** 0.5)**2
@@ -347,6 +348,7 @@ class TNFW(object):
                 vals = 0
             else:
                 vals = np.arctanh((1 - x ** 2) ** 0.5)**2
+
             return vals
         else:
             l = np.where(x < 1)
