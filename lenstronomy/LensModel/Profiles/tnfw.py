@@ -331,7 +331,7 @@ class TNFW(object):
                 +
                 4 * t2 * (u - 1) * self.F(u ** .5)
                 +
-                t2 * (t2 - 1) * (self._cos_func(u ** -0.5))
+                t2 * (t2 - 1) * (self._cosfunc(u ** -0.5))
                 +
                 t2 * ((t2 - 1) * np.log(tau) - t2 - 1) * np.log(u)
                 -
@@ -339,19 +339,24 @@ class TNFW(object):
                             tau - np.pi) * np.log(
                     tau * 2)))
 
-    def _cos_func(self, y):
-        if isinstance(y, float) or isinstance(y, int):
-            if y > 1:
-                return -np.arccos(y**-1)**2
+    def _cosfunc(self,x):
+        if isinstance(x, int) or isinstance(x, float):
+            if x > 1:
+                vals = -np.arctan((x ** 2 - 1) ** 0.5)**2
+            elif x == 1:
+                vals = 0
             else:
-                return np.arccos(y)**2
+                vals = np.arctanh((1 - x ** 2) ** 0.5)**2
+            return vals
         else:
-            values = np.ones_like(y)
-            inds1 = np.where(y < 1)
-            inds2 = np.where(y > 1)
-            values[inds1] = np.arccos(y[inds1])**2
-            values[inds2] = -(np.arccos((y[inds2]) ** -1))**2
-            return values
+            l = np.where(x < 1)
+            g = np.where(x > 1)
+            vals = np.zeros_like(x)
+            vals[l] = np.arctanh((1 - x[l] ** 2) ** 0.5) ** 2
+
+            vals[g] = -np.arctanh((x[g]**2-1) ** 0.5) ** 2
+            print(vals[g])
+            return vals
 
 
     def _alpha2rho0(self, theta_Rs, Rs):
