@@ -31,12 +31,27 @@ class TestTNFW(object):
     def test_potential(self):
         Rs = 0.2
         theta_Rs = 0.1
+        r_trunc = 2 * Rs
+        x = np.linspace(0.1*Rs, r_trunc, 1000)
+        y = np.linspace(0, 0, len(x))
+        R = (x ** 2 + y ** 2) ** 0.5
+
+        pot_t = self.tnfw.nfwPot(R, Rs, theta_Rs, r_trunc)
+        pot = self.nfw.nfwPot(R, Rs, theta_Rs)
+
+        plt.plot(R,pot_t)
+        plt.plot(R,pot,linestyle='--')
+        plt.show()
+
+    def test_potential_2(self):
+        Rs = 0.2
+        theta_Rs = 0.1
         r_trunc = 1000000000000 * Rs
         x = np.linspace(0.1 * Rs, 5 * Rs, 1000)
         y = np.linspace(0.2, 1, 1000)
-
-        pot_t = self.tnfw.nfwPot((x ** 2 + y ** 2) ** .5, Rs, theta_Rs, r_trunc)
-        pot = self.nfw.nfwPot((x ** 2 + y ** 2) ** .5, Rs, theta_Rs)
+        R = (x**2 + y**2)**0.5
+        pot_t = self.tnfw.nfwPot(R, Rs, theta_Rs, r_trunc)
+        pot = self.nfw.nfwPot(R, Rs, theta_Rs)
 
         np.testing.assert_almost_equal(pot, pot_t, 4)
 
@@ -100,6 +115,11 @@ class TestTNFW(object):
 
         for (approx,true) in zip(numerical,actual):
             npt.assert_almost_equal(approx,true)
+
+t = TestTNFW()
+t.setup()
+t.test_potential()
+exit(1)
 
 if __name__ == '__main__':
     pytest.main()
