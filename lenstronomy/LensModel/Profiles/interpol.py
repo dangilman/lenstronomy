@@ -54,7 +54,7 @@ class Interpol_func(object):
                 f_x_out = util.image2array(f_x_out)
                 f_y_out = util.image2array(f_y_out)
             else:
-                #n = len(x)
+
                 f_x_out, f_y_out = np.zeros(n), np.zeros(n)
                 for i in range(n):
                     f_x_out[i] = self.f_x_interp(x[i], y[i], grid_interp_x, grid_interp_y, f_x)

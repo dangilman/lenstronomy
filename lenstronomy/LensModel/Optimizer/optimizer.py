@@ -27,7 +27,8 @@ class Optimizer(object):
                  astropy_instance=None, verbose=False, re_optimize=False, particle_swarm=True,
                  pso_convergence_standardDEV=0.01, pso_convergence_mean=400, pso_compute_magnification=100,
                  tol_simplex_params=1e-3,tol_simplex_func = 1e-3,tol_src_penalty=0.1,constrain_params=None,
-                 simplex_n_iterations=300, single_background=False):
+                 simplex_n_iterations=300, single_background=False, interp_background = True,
+                 toggle_interp = 1e+5, interp_res = 1e-4, interp_range = 0.025):
 
 
         """
@@ -127,7 +128,8 @@ class Optimizer(object):
                                                  astropy_instance, self._params.tovary_indicies)
             else:
                 lensing_class = MultiPlaneLensing(self._lensModel, x_pos, y_pos, kwargs_lens, z_source, z_main,
-                                                    astropy_instance, self._params.tovary_indicies)
+                                                    astropy_instance, self._params.tovary_indicies,interp_res = interp_res,
+                                                  interp_range = interp_range)
 
             self.solver = LensEquationSolver(lensing_class)
 
@@ -137,7 +139,10 @@ class Optimizer(object):
                                     params_to_constrain=constrain_params, param_class=self._params,
                                     pso_convergence_mean=pso_convergence_mean,
                                     pso_compute_magnification=pso_compute_magnification, compute_mags=False,
-                                    verbose=verbose, single_background_switch = pso_convergence_mean)
+                                    verbose=verbose, single_background_switch = pso_convergence_mean,
+                                    interp_background=interp_background,
+                                    toggle_interp= toggle_interp)
+
 
     def optimize(self, n_particles=50, n_iterations=250, restart=1):
 

@@ -7,7 +7,8 @@ class MultiPlaneLensing(object):
     _no_potential = True
 
     def __init__(self, full_lensmodel, x_pos, y_pos, lensmodel_params, z_source,
-                 z_macro, astropy_instance, macro_indicies):
+                 z_macro, astropy_instance, macro_indicies, interp_range = 0.03,
+                 interp_res = 1e-4):
 
         """
         This class performs (fast) lensing computations for multi-plane lensing scenarios
@@ -32,13 +33,11 @@ class MultiPlaneLensing(object):
         self._full_lensmodel, self._lensmodel_params = full_lensmodel, lensmodel_params
 
         self._T_z_source = full_lensmodel.lens_model._T_z_source
+        self._T_main_source = full_lensmodel.lens_model._cosmo_bkg.T_xy(z_macro, z_source)
 
-        macromodel_lensmodel, macro_args, halo_lensmodel, halo_args, front_lensmodel, front_args, self._z_background = \
+        macromodel_lensmodel, macro_args, halo_lensmodel, halo_args, _, _, self._z_background = \
             self._split_lensmodel(full_lensmodel,lensmodel_params,z_break=z_macro,macro_indicies=macro_indicies)
         self._macro_indicies = macro_indicies
-
-        self._front_lensmodel = front_lensmodel
-        self._front_args = front_args
 
         self._foreground = Foreground(halo_lensmodel, self._z_macro, x_pos, y_pos)
         self._halo_args = halo_args
@@ -47,6 +46,10 @@ class MultiPlaneLensing(object):
         self._macro_args = macro_args
 
         self._background = Background(halo_lensmodel, self._z_macro, self._z_source)
+
+        self._do_interp = False
+        self._interp_range = interp_range
+        self._interp_res = interp_res
 
     def ray_shooting(self, x, y, kwargs_lens):
 
@@ -104,8 +107,21 @@ class MultiPlaneLensing(object):
 
         x, y, alphax, alphay = self._model_to_vary.ray_shooting(alphax, alphay, macromodel_args, x, y)
 
+        if self._do_interp:
 
-        x_source, y_source = self._background.ray_shooting(alphax, alphay, self._halo_args, x, y)
+            if not hasattr(self, '_background_interp'):
+                alphax_guess, alphay_guess = -x * self._T_main_source ** -1, \
+                                             - y * self._T_main_source ** -1
+                self._background_interp = BackgroundInterpolated(self._background._halos_lensmodel, self._halo_args,
+                                                             self._z_macro, self._z_source, x, y,
+                                                             alphax_guess, alphay_guess, self._interp_range, self._interp_res, self._astropy_instance)
+
+
+            x_source, y_source = self._background_interp.ray_shooting(alphax, alphay, self._halo_args, x, y)
+
+        else:
+
+            x_source, y_source = self._background.ray_shooting(alphax, alphay, self._halo_args, x, y)
 
         betax, betay = x_source * self._T_z_source ** -1, y_source * self._T_z_source ** -1
 
@@ -282,6 +298,100 @@ class Foreground(object):
             return self._rays[offset_index]['x'], self._rays[offset_index]['y'],\
                    self._rays[offset_index]['alphax'], self._rays[offset_index]['alphay']
 
+class BackgroundInterpolated(object):
+
+    def __init__(self, background_lensmodel, background_args, z_macro, z_source,
+                 x_main, y_main, alpha_x_macro, alpha_y_macro, interp_range, interp_res,
+                 astropy):
+
+        self._zstart = z_macro
+
+        self._z_source = z_source
+        self._interp_range = interp_range
+        self._interp_steps = 2*interp_range * interp_res ** -1
+        self._astropy_instance = astropy
+
+        unique_z = np.unique(background_lensmodel.lens_model._redshift_list)
+        zgreater = unique_z[np.where(unique_z > z_macro)]
+        dz = np.min(zgreater) - z_macro
+        z_background = z_macro + dz
+        self._z_background = z_background
+
+        self._deltaT_to_background = background_lensmodel.lens_model._cosmo_bkg.T_xy(0, z_background)
+
+        dT_tobackground = background_lensmodel.lens_model._cosmo_bkg.T_xy(z_macro, z_macro + dz)
+
+        x_interp, y_interp = x_main + alpha_x_macro * dT_tobackground, y_main + alpha_y_macro * dT_tobackground
+
+        self.interpolated_models, self.interpolated_args = self._interpolate(background_lensmodel, background_args, x_interp * self._deltaT_to_background**-1,
+                          y_interp * self._deltaT_to_background ** -1)
+
+    def ray_shooting(self, thetax, thetay, args, x_in, y_in):
+
+        x, y = [], []
+        for i, (thetax_i, thetay_i) in enumerate(list(zip(thetax, thetay))):
+            args = self.interpolated_args[i]
+            xi, yi, alphax_i, alphay_i = self.interpolated_models[i].lens_model.ray_shooting_partial(x_in[i],
+                                                                                                 y_in[i], thetax_i,
+                                                                                                 thetay_i,
+                                                                                                 z_start=self._zstart,
+                                                                                                 z_stop=self._z_source,
+                                                                                                 kwargs_lens=args,
+                                                                                                 include_z_start=True)
+            x.append(xi)
+            y.append(yi)
+
+        x, y = np.array(x), np.array(y)
+
+        return x, y
+
+    def _interpolate(self, background_lensmodel, background_args, x, y):
+
+        interp_models = []
+        interp_args = []
+
+        x_values, y_values = np.linspace(-self._interp_range, self._interp_range, self._interp_steps), \
+                             np.linspace(-self._interp_range, self._interp_range, self._interp_steps)
+
+        for count, (xi, yi) in enumerate(zip(x, y)):
+
+            #if self.verbose:
+            print('interpolating field behind image ' + str(count + 1) + '...')
+
+            interp_model_i, interp_args_i = self._lensmodel_interpolated((x_values + xi),
+                                                                         (y_values + yi),
+                                                                         background_lensmodel,
+                                                                         background_args)
+
+
+            interp_models.append(interp_model_i)
+            interp_args.append(interp_args_i)
+
+        return interp_models, interp_args
+
+    def _lensmodel_interpolated(self, x_values, y_values, interp_lensmodel, interp_args):
+
+        """
+
+        :param x_values: 1d array of x coordinates to interpolate
+        :param y_values: 1d array of y coordinates to interpolate
+        (e.g. np.linspace(ymin,ymax,steps))
+        :param interp_lensmodel: lensmodel to interpolate
+        :param interp_args: kwargs for interp_lensmodel
+        :return: interpolated lensmodel
+        """
+        xx, yy = np.meshgrid(x_values, y_values)
+        L = int(len(x_values))
+        xx, yy = xx.ravel(), yy.ravel()
+
+        f_x, f_y = interp_lensmodel.alpha(xx, yy, interp_args)
+
+        interp_args = [{'f_x': f_x.reshape(L, L), 'f_y': f_y.reshape(L, L),
+                        'grid_interp_x': x_values, 'grid_interp_y': y_values}]
+
+        return LensModel(lens_model_list=['INTERPOL'], redshift_list=[self._z_background], cosmo=self._astropy_instance,
+                         z_source=self._z_source, multi_plane=True), interp_args
+
 class Background(object):
 
     def __init__(self, background_lensmodel, z_background, z_source):
@@ -296,3 +406,5 @@ class Background(object):
                                                       self._z_background, self._z_source, args)
 
         return x,y
+
+
