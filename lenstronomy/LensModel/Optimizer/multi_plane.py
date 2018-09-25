@@ -313,7 +313,11 @@ class BackgroundInterpolated(object):
 
         unique_z = np.unique(background_lensmodel.lens_model._redshift_list)
         zgreater = unique_z[np.where(unique_z > z_macro)]
-        dz = np.min(zgreater) - z_macro
+        try:
+            dz = np.min(zgreater) - z_macro
+        except:
+            print('no background halos...')
+            dz = z_source - z_macro
         z_background = z_macro + dz
         self._z_background = z_background
 

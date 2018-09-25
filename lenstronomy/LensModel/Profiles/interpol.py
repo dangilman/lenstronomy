@@ -12,9 +12,10 @@ class Interpol_func(object):
     """
     param_names = ['grid_interp_x', 'grid_interp_y', 'f_', 'f_x', 'f_y', 'f_xx', 'f_yy', 'f_xy']
 
-    def __init__(self, grid=True, min_grid_number=100):
+    def __init__(self, grid=True, min_grid_number=100, order=1):
         self._grid = grid
         self._min_grid_number = min_grid_number
+        self._order = order
 
     def function(self, x, y, grid_interp_x=None, grid_interp_y=None, f_=None, f_x=None, f_y=None, f_xx=None, f_yy=None, f_xy=None):
         #self._check_interp(grid_interp_x, grid_interp_y, f_, f_x, f_y, f_xx, f_yy, f_xy)
@@ -93,44 +94,44 @@ class Interpol_func(object):
 
     def f_interp(self, x, y, x_grid=None, y_grid=None, f_=None):
         if not hasattr(self, '_f_interp'):
-            self._f_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_, kx=1, ky=1, s=0)
+            self._f_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_, kx=self._order, ky=self._order, s=0)
         return self._f_interp(y, x)
 
     def f_x_interp(self, x, y, x_grid=None, y_grid=None, f_x=None):
         if not hasattr(self, '_f_x_interp'):
-            self._f_x_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_x, kx=1, ky=1, s=0)
+            self._f_x_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_x, kx=self._order, ky=self._order, s=0)
         return self._f_x_interp(y, x)
 
     def f_y_interp(self, x, y, x_grid=None, y_grid=None, f_y=None):
         if not hasattr(self, '_f_y_interp'):
-            self._f_y_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_y, kx=1, ky=1, s=0)
+            self._f_y_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_y, kx=self._order, ky=self._order, s=0)
         return self._f_y_interp(y, x)
 
     def f_xx_interp(self, x, y, x_grid=None, y_grid=None, f_xx=None):
         if not hasattr(self, '_f_xx_interp'):
-            self._f_xx_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xx, kx=1, ky=1, s=0)
+            self._f_xx_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xx, kx=self._order, ky=self._order, s=0)
         return self._f_xx_interp(y, x)
 
     def f_xy_interp(self, x, y, x_grid=None, y_grid=None, f_xy=None):
         if not hasattr(self, '_f_xy_interp'):
-            self._f_xy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xy, kx=1, ky=1, s=0)
+            self._f_xy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xy, kx=self._order, ky=self._order, s=0)
         return self._f_xy_interp(y, x)
 
     def f_yy_interp(self, x, y, x_grid=None, y_grid=None, f_yy=None):
         if not hasattr(self, '_f_yy_interp'):
-            self._f_yy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_yy, kx=1, ky=1, s=0)
+            self._f_yy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_yy, kx=self._order, ky=self._order, s=0)
         return self._f_yy_interp(y, x)
 
     def do_interp(self, x_grid, y_grid, f_, f_x, f_y, f_xx=None, f_yy=None, f_xy=None):
-        self._f_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_, kx=1, ky=1, s=0)
-        self._f_x_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_x, kx=1, ky=1, s=0)
-        self._f_y_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_y, kx=1, ky=1, s=0)
+        self._f_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_, kx=self._order, ky=self._order, s=0)
+        self._f_x_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_x, kx=self._order, ky=self._order, s=0)
+        self._f_y_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_y, kx=self._order, ky=self._order, s=0)
         if f_xx is not None:
-            self._f_xx_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xx, kx=1, ky=1, s=0)
+            self._f_xx_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xx, kx=self._order, ky=self._order, s=0)
         if f_xy is not None:
-            self._f_xy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xy, kx=1, ky=1, s=0)
+            self._f_xy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_xy, kx=self._order, ky=self._order, s=0)
         if f_yy is not None:
-            self._f_yy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_yy, kx=1, ky=1, s=0)
+            self._f_yy_interp = scipy.interpolate.RectBivariateSpline(x_grid, y_grid, f_yy, kx=self._order, ky=self._order, s=0)
 
 
 class Interpol_func_scaled(object):
