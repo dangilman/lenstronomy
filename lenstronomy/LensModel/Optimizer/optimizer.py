@@ -28,7 +28,7 @@ class Optimizer(object):
                  pso_convergence_standardDEV=0.01, pso_convergence_mean=400, pso_compute_magnification=100,
                  tol_simplex_params=1e-3,tol_simplex_func = 1e-3,tol_src_penalty=0.1,constrain_params=None,
                  simplex_n_iterations=300, single_background=False,
-                 toggle_interp = 1e+5, interp_res = 1e-4, interp_range = 0.025):
+                 toggle_interp = False, interp_res = 1e-4, interp_range = 0.025):
 
 
         """
