@@ -29,6 +29,9 @@ class TBurk(object):
         return rho0*tau**2*((p+y) * (p**2 + y**2) * (tau**2 + y**2)) ** -1
 
     def density_2d(self, x, y, Rs, rho0, r_trunc, p, center_x=0, center_y=0):
+
+
+
         pass
 
     def mass_3d(self, Rs, rho0, r_trunc, p):
@@ -37,29 +40,86 @@ class TBurk(object):
     def mass_2d(self, Rs, rho0, r_trunc, p):
         pass
 
-    def _g(self, x, p, tau):
+    def _F(self, x, p, tau):
 
         """
-        solution of the projection integral
-        :param x:
-        :param p:
-        :param tau:
-        :return:
+        Analytic solution of the projection integral
+        :param x: 
+        :param p: 
+        :param tau: 
+        :return: 
         """
 
-        t2 = tau ** 2
-        p2 = p ** 2
-        x2 = x ** 2
+        if isinstance(x, list):
+            x = np.array(x)
 
-        f1 = x2 - p2
-        f2 = x2 + p2
-        f3 = x2 + t2
-        f4 = x2 - t2
-        f5 = t2 + p2
+        if isinstance(x, np.ndarray):
+            inds_equal = np.where(x == p)
+            x[inds_equal] += 1e-6
+            inds_greater = np.where(x > p)
+            inds_less = np.where(x < p)
 
-        first_term = np.pi * (2*p * ((p2 ** 2 - t2 **2) * f3 ** 0.5) ** -1 -
-                              (p * f5 * f1 ** 0.5) ** -1 -
-                              (p*(p2 - t2)*f2**0.5)**-1)
-        second_term = None
+            kappa = np.zeros_like(x)
+
+            x_less = x[inds_less]
+            x_greater = x[inds_greater]
+
+            kappa[inds_less] = ((2 * (p ** 2 - tau ** 2) * np.arctan(p / np.sqrt(-p ** 2 + x_less ** 2))) /
+                    (np.sqrt(-p ** 2 + x_less ** 2) * (p ** 2 + tau ** 2)) +
+                    np.log((-p + np.sqrt(p ** 2 + x_less ** 2)) / (p + np.sqrt(p ** 2 + x_less ** 2))) / np.sqrt(p ** 2 + x_less ** 2) -
+                    (np.pi * ((-(1 / np.sqrt(-p ** 2 + x_less ** 2)) + 1 / np.sqrt(p ** 2 + x_less ** 2)) * tau ** 2 +
+                     p ** 2 * (1 / np.sqrt(-p ** 2 + x_less ** 2) + 1 / np.sqrt(p ** 2 + x_less ** 2) - 2 / np.sqrt(x_less ** 2 +
+                        tau ** 2))) + (2 * p *tau * np.log((-tau + np.sqrt(x_less ** 2 + tau ** 2)) / (tau + np.sqrt(x_less ** 2 + tau ** 2)))) /
+                        np.sqrt(x_less ** 2 + tau ** 2)) / (p ** 2 + tau ** 2)) / (2. * p * (p ** 2 - tau ** 2))
+
+            kappa[inds_greater] = ((2 * (p ** 2 - tau ** 2) * np.arctan(p / np.sqrt(-p ** 2 + x_greater ** 2))) /
+                                (np.sqrt(-p ** 2 + x_greater ** 2) * (p ** 2 + tau ** 2)) +
+                                np.log((-p + np.sqrt(p ** 2 + x_greater ** 2)) / (
+                                            p + np.sqrt(p ** 2 + x_greater ** 2))) / np.sqrt(p ** 2 + x_greater ** 2) -
+                                (np.pi * ((-(1 / np.sqrt(-p ** 2 + x_greater ** 2)) + 1 / np.sqrt(
+                                    p ** 2 + x_greater ** 2)) * tau ** 2 +
+                                          p ** 2 * (1 / np.sqrt(-p ** 2 + x_greater ** 2) + 1 / np.sqrt(
+                                            p ** 2 + x_greater ** 2) - 2 / np.sqrt(x_greater ** 2 +
+                                                                                tau ** 2))) + (2 * p * tau * np.log(
+                                    (-tau + np.sqrt(x_greater ** 2 + tau ** 2)) / (
+                                                tau + np.sqrt(x_greater ** 2 + tau ** 2)))) /
+                                 np.sqrt(x_greater ** 2 + tau ** 2)) / (p ** 2 + tau ** 2)) / (
+                                           2. * p * (p ** 2 - tau ** 2))
+
+        else:
+            if x > p:
+
+                kappa = ((np.np.pi*(-(tau**2*np.np.sqrt((p**2 - x**2)*(x**2 + tau**2))) +
+                  p**2*(2*np.np.sqrt(p**4 - x**4) - np.np.sqrt((p**2 - x**2)*(x**2 + tau**2)))) -
+               (p**2 - tau**2)*np.np.sqrt((p**2 + x**2)*(x**2 + tau**2))*
+                np.np.log((p + np.np.sqrt(p**2 - x**2))/(p - np.np.sqrt(p**2 - x**2))) -
+               (p**2 + tau**2)*np.np.sqrt((p**2 - x**2)*(x**2 + tau**2))*
+                np.np.log((p + np.np.sqrt(p**2 + x**2))/(-p + np.np.sqrt(p**2 + x**2))) +
+               2*p*np.np.sqrt(p**4 - x**4)*tau*np.np.log((-tau + np.np.sqrt(x**2 + tau**2))/(tau + np.np.sqrt(x**2 + tau**2)))
+               ))/(2.*np.np.sqrt((p**4 - x**4)*(x**2 + tau**2))*(p**5 - p*tau**4))
+
+            elif x < p:
+                kappa = ((2 * (p ** 2 - tau ** 2) * np.arctan(p / np.sqrt(-p ** 2 + x ** 2))) /
+                    (np.sqrt(-p ** 2 + x ** 2) * (p ** 2 + tau ** 2)) +
+                    np.log((-p + np.sqrt(p ** 2 + x ** 2)) / (p + np.sqrt(p ** 2 + x ** 2))) / np.sqrt(p ** 2 + x ** 2) -
+                    (np.pi * ((-(1 / np.sqrt(-p ** 2 + x ** 2)) + 1 / np.sqrt(p ** 2 + x ** 2)) * tau ** 2 +
+                     p ** 2 * (1 / np.sqrt(-p ** 2 + x ** 2) + 1 / np.sqrt(p ** 2 + x ** 2) - 2 / np.sqrt(x ** 2 +
+                        tau ** 2))) + (2 * p *tau * np.log((-tau + np.sqrt(x ** 2 + tau ** 2)) / (tau + np.sqrt(x ** 2 + tau ** 2)))) /
+                        np.sqrt(x ** 2 + tau ** 2)) / (p ** 2 + tau ** 2)) / (2. * p * (p ** 2 - tau ** 2))
+
+        return kappa
+
+t = TBurk()
+x = np.linspace(1, 1.4, 10000)
+kappa1 = t._F(x, 0.2, 50)
+kappa2 = t._F(x, 0.4, 1000)
+import matplotlib.pyplot as plt
+plt.loglog(x, kappa1)
+plt.loglog(x, kappa2)
+plt.show()
+
+
         
+
+       
 
