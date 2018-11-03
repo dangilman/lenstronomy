@@ -7,7 +7,6 @@ import numpy as np
 import scipy.interpolate as interp
 import warnings
 
-
 class TNFW(object):
     """
     this class contains functions concerning the truncated NFW profile with a truncation function (r_trunc^2)*(r^2+r_trunc^2)
