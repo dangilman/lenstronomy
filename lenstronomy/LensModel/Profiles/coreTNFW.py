@@ -32,11 +32,10 @@ class coreTNFW(object):
         x_ = x - center_x
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
-        f_outer_ = self.nfwPot(R, Rs, rho0_input, r_trunc)
-        f_inner_ = -self.nfwPot(R, Rs, rho0_input, r_core)
+        f_ = self.nfwPot(R, Rs, rho0_input, r_trunc, r_core)
 
         #TODO: truncated NFW potential not in place yet!
-        return f_outer_ + f_inner_
+        return f_
 
     def L(self, x, tau):
         """
@@ -96,25 +95,16 @@ class coreTNFW(object):
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
 
-        kappa = self.density_2d(x_, y_, Rs, rho0_input, r_trunc)
-        gamma1, gamma2 = self.nfwGamma(R, Rs, rho0_input, r_trunc, x_, y_)
+        kappa = self.density_2d(x_, y_, Rs, rho0_input, r_trunc, r_core)
+        gamma1, gamma2 = self.nfwGamma(R, Rs, rho0_input, r_trunc, r_core, x_, y_)
+
         f_xx = kappa + gamma1
         f_yy = kappa - gamma1
         f_xy = gamma2
 
-        kappa = self.density_2d(x_, y_, Rs, rho0_input, r_core)
-        gamma1, gamma2 = self.nfwGamma(R, Rs, rho0_input, r_core, x_, y_)
-        f_xx_core = kappa + gamma1
-        f_yy_core = kappa - gamma1
-        f_xy_core = gamma2
-
-        f_xx -= f_xx_core
-        f_yy -= f_yy_core
-        f_xy -= f_xy_core
-
         return f_xx, f_yy, f_xy
 
-    def density(self, R, Rs, rho0, t, core):
+    def density(self, R, Rs, rho0, r_trunc, r_core):
         """
         three dimenstional truncated NFW profile
 
@@ -126,9 +116,10 @@ class coreTNFW(object):
         :type rho0: float
         :return: rho(R) density
         """
-        density_main = (t ** 2 * (t ** 2 + R ** 2) ** -1) * rho0 / (R / Rs * (1 + R / Rs) ** 2)
 
-        density_core = (core ** 2 * (core ** 2 + R ** 2) ** -1) * rho0 / (R / Rs * (1 + R / Rs) ** 2)
+        density_main = (r_trunc ** 2 * (r_trunc ** 2 + R ** 2) ** -1) * rho0 / (R / Rs * (1 + R / Rs) ** 2)
+
+        density_core = (r_core ** 2 * (r_core ** 2 + R ** 2) ** -1) * rho0 / (R / Rs * (1 + R / Rs) ** 2)
 
         return density_main - density_core
 
@@ -155,7 +146,7 @@ class coreTNFW(object):
         Fx_core = self._F(x, float(r_core) * Rs ** -1)
         return 2 * rho0 * Rs * (Fx - Fx_core)
 
-    def mass_3d_infinity(self, R, Rs, rho0, t, r_core):
+    def mass_3d_infinity(self, R, Rs, rho0, r_trunc, r_core):
         """
         mass enclosed a 3d sphere or radius r
         :param r:
@@ -164,7 +155,7 @@ class coreTNFW(object):
         :return:
         """
         Rs = float(Rs)
-        tau = t * Rs ** -1
+        tau = r_trunc * Rs ** -1
         tau_core = r_core * Rs ** -1
         m_3d = 4. * np.pi * rho0 * Rs ** 3 * \
                ((tau ** 2 - 1) * np.log(tau) + tau * np.pi - (tau ** 2 + 1))
@@ -174,7 +165,7 @@ class coreTNFW(object):
 
         return m_3d - m_3d_core
 
-    def nfwPot(self, R, Rs, rho0, r_trunc):
+    def nfwPot(self, R, Rs, rho0, r_trunc, r_core):
         """
         lensing potential of NFW profile (*Sigma_crit*D_OL**2)
 
@@ -189,9 +180,11 @@ class coreTNFW(object):
         x = R / Rs
         tau = float(r_trunc) / Rs
         hx = self._h(x, tau)
+        hx_core = self._h(x, r_core / Rs)
+        hx -= hx_core
         return 2 * rho0 * Rs ** 3 * hx
 
-    def nfwAlpha(self, R, Rs, rho0, r_trunc, ax_x, ax_y):
+    def nfwAlpha(self, R, Rs, rho0, r_trunc, r_core, ax_x, ax_y):
         """
         deflection angel of NFW profile (*Sigma_crit*D_OL) along the projection to coordinate 'axis'
 
@@ -215,10 +208,12 @@ class coreTNFW(object):
         x = R / Rs
         tau = float(r_trunc) / Rs
         gx = self._g(x, tau)
+        gxcore = self._g(x, float(r_core) / Rs)
+        gx -= gxcore
         a = 4 * rho0 * Rs * gx / x ** 2
         return a * ax_x, a * ax_y
 
-    def nfwGamma(self, R, Rs, rho0, r_trunc, ax_x, ax_y):
+    def nfwGamma(self, R, Rs, rho0, r_trunc, r_core, ax_x, ax_y):
         """
 
         shear gamma of NFW profile (times Sigma_crit) along the projection to coordinate 'axis'
@@ -244,15 +239,22 @@ class coreTNFW(object):
         x = R / Rs
 
         tau = float(r_trunc) * Rs ** -1
+        core = float(r_core) * Rs ** -1
 
-        gx = self._g(x, tau)
-        Fx = self._F(x, tau)
+        _gx = self._g(x, tau)
+        _Fx = self._F(x, tau)
+
+        gx_core = self._g(x, core)
+        Fx_core = self._g(x, core)
+
+        gx = _gx - gx_core
+        Fx = _Fx - Fx_core
 
         a = 2*rho0*Rs*(2*gx/x**2 - Fx)  # /x #2*rho0*Rs*(2*gx/x**2 - Fx)*axis/x
 
         return a * (ax_y ** 2 - ax_x ** 2) / R ** 2, -a * 2 * (ax_x * ax_y) / R ** 2
 
-    def mass_2d(self,R,Rs,rho0,r_trunc):
+    def mass_2d(self,R,Rs,rho0,r_trunc,r_core):
 
         """
         analytic solution of the projection integral
@@ -265,6 +267,8 @@ class coreTNFW(object):
         x = R / Rs
         tau = r_trunc / Rs
         gx = self._g(x,tau)
+        gxcore = self._g(x, r_core / Rs)
+        gx -= gxcore
         m_2d = 4 * rho0 * Rs * R ** 2 * gx / x ** 2 * np.pi
         return m_2d
 
@@ -421,3 +425,20 @@ class coreTNFW(object):
         """
         theta_Rs = rho0 * (4 * Rs ** 2 * (1 + np.log(1. / 2.)))
         return theta_Rs
+
+t = coreTNFW()
+
+Rs = 0.1
+R = np.linspace(0.01 * Rs, 50*Rs, 1000)
+
+tau = 20
+p = 0.8
+
+r_trunc = tau*Rs
+r_core = p*Rs
+
+rho = t.density(R, Rs, 1, r_trunc, r_core)
+import matplotlib.pyplot as plt
+plt.loglog(R / Rs, rho)
+plt.show()
+
