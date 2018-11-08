@@ -18,7 +18,23 @@ class TBurk(object):
         pass
 
     def derivatives(self, x, y, Rs, rho0, r_trunc, p, center_x=0, center_y=0):
-        pass
+
+        X = (x**2 + y**2) ** 0.5 * Rs ** -1
+        if isinstance(X, np.ndarray):
+            X[np.where(X < 0.001)] = 0.001
+        else:
+            X = min(0.001, X)
+
+        tau = r_trunc / Rs
+
+        x_ = x - center_x
+        y_ = y - center_y
+
+        mproj = p * self._projected_mass_integral(X, p, tau)
+
+        a = 4 * rho0 * Rs * mproj
+
+        return a * x_, a * y_
 
     def hessian(self, x, y, Rs, rho0, r_trunc, p, center_x=0, center_y=0):
         pass
@@ -28,7 +44,7 @@ class TBurk(object):
         y = R * Rs ** -1
         tau = r_trunc * Rs ** -1
 
-        return rho0*tau**2*((p+y) * (p**2 + y**2) * (tau**2 + y**2)) ** -1
+        return p * rho0*tau**2*((p+y) * (p**2 + y**2) * (tau**2 + y**2)) ** -1
 
     def density_2d(self, x, y, Rs, rho0, r_trunc, r_core, center_x=0, center_y=0):
 
@@ -41,7 +57,7 @@ class TBurk(object):
         p = r_core * Rs ** -1
         tau = r_trunc * Rs ** -1
 
-        projection = self._projection_integral(X, p, tau)
+        projection = p * self._projection_integral(X, p, tau)
 
         return Rs * rho0 * tau ** 2 * projection
 
@@ -71,6 +87,29 @@ class TBurk(object):
                 m2d = self._projection_mass_pgreaterx(x, p, tau)
 
         return 2 * np.pi * m2d
+
+    def _projection_mass_plessx(self, x, p, tau):
+        pass
+
+    def _projection_mass_pgreaterx(self, x, p, tau):
+
+        F1 = np.sqrt(p ** 2 - x ** 2)
+        F2 = np.sqrt(x ** 2 + tau ** 2)
+        F3 = np.sqrt(p ** 2 + x ** 2)
+        L1 = np.log(-1 + (2*p*(p + F1)) * x ** -2)
+        L2 = np.log(1 + (2*p*(p + F3)) * x ** -2)
+        L3 = np.log(1 + (2*tau*(tau + F2)) * x ** -2)
+
+        numerator = np.pi * (
+                    F1 * F2 * F3 * L2 * p ** 2 - F2 * L1 * p ** 4 + F2 * L1 * p ** 2 * x ** 2 - 2 * F1 * L3 * p * x ** 2 * tau +
+                    F1 * F2 * F3 * L2 * tau ** 2 + F2 * L1 * p ** 2 * tau ** 2 - F2 * L1 * x ** 2 * tau ** 2 - 2 * F1 * L3 * p * tau ** 3 +
+                    4 * F1 * F2 * p * tau ** 2 * np.log(4 * p) + 4 * F1 * F2 * p * tau ** 2 * np.log(
+                x) + 2 * F1 * F2 * p * tau ** 2 * np.log(F2 - tau) -
+                    4 * F1 * F2 * p * tau ** 2 * np.log(tau) + 2 * F1 * F2 * p * tau ** 2 * np.log(F2 - tau))
+
+        denom = ((F1 * F2 * (p ** 5 - p * tau ** 4))) ** -1
+
+        return numerator * denom
 
     def _projection_integral(self, x, p, tau):
 
@@ -118,16 +157,7 @@ class TBurk(object):
 
     def _projection_pgreaterx(self, x, p, tau):
 
-        return (0.5*(np.pi*(-(np.sqrt(p**4 - x**4)/(p*(p**2 + x**2))) + 
-              (2*p*np.sqrt((p**2 - x**2)*(x**2 + tau**2)))/((p**2 + tau**2)*(x**2 + tau**2))) +
-           (2*p*np.arctanh(np.sqrt(p**2 - x**2)/p))/(p**2 + x**2) +
-           (2*x**2*np.arctanh(np.sqrt(p**2 - x**2)/p))/(p*(p**2 + x**2)) -
-           (4*p*x**2*np.arctanh(np.sqrt(p**2 - x**2)/p))/((p**2 + tau**2)*(x**2 + tau**2)) -
-           (4*p*tau**2*np.arctanh(np.sqrt(p**2 - x**2)/p))/((p**2 + tau**2)*(x**2 + tau**2)) -
-           (2*np.sqrt(p**4 - x**4)*np.arctanh(p/np.sqrt(p**2 + x**2)))/(p*(p**2 + x**2)) -
-           (2*tau*np.sqrt((p**2 - x**2)*(x**2 + tau**2))*
-              np.log((x**2 + 2*tau*(tau - np.sqrt(x**2 + tau**2)))/x**2))/
-            ((p**2 + tau**2)*(x**2 + tau**2))))/(np.sqrt(p**2 - x**2)*(p**2 - tau**2))
+        return
 
     def _x_array_split(self, x, ref):
         inds_lower = np.where(x < ref)
@@ -136,25 +166,19 @@ class TBurk(object):
 
         return x[inds_lower], x[inds_greater], (inds_lower, inds_greater)
 
-
 from lenstronomy.LensModel.Profiles.tnfw import TNFW
 tnfw = TNFW()
 rho = 10000
 Rs = 0.6
-tau = 2
-p = .04
-x = np.logspace(np.log10(0.001*Rs), np.log10(5*Rs), 100)
-print(x)
+tau = 10
+p = 0.5
+x = np.linspace(0.01 * Rs, p*0.99 * Rs, 100)
+
 t = TBurk()
-kappa1 = p * t.density_2d(x, 0, Rs, rho, tau * Rs, p * Rs)
-kappa2 = tnfw.density_2d(x, 0, Rs, rho, tau * Rs)
+
+m = t._projection_mass_pgreaterx(x / Rs, p, tau)
+m2 = tnfw.mass_2d(x, Rs, 1, r_trunc=tau*Rs)
 import matplotlib.pyplot as plt
-plt.loglog(x, kappa1, color='r')
-plt.loglog(x, kappa2, color = 'k')
+plt.loglog(x/Rs,p* tau ** 2*m * x **2, color='r')
+plt.loglog(x/Rs, m2, color = 'k')
 plt.show()
-
-
-        
-
-       
-
