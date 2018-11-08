@@ -72,14 +72,15 @@ class coreTNFW(object):
     def derivatives(self, x, y, Rs=None, theta_Rs=None, r_trunc=None, r_core = None, center_x=0, center_y=0):
 
         rho0_input = self._alpha2rho0(theta_Rs=theta_Rs, Rs=Rs)
+
         if Rs < 0.0000001:
             Rs = 0.0000001
         x_ = x - center_x
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
-        f_x, f_y = self.nfwAlpha(R, Rs, rho0_input, r_trunc, x_, y_)
-        f_x_core, f_y_core = self.nfwAlpha(R, Rs, rho0_input, r_core, x_, y_)
-        return f_x - f_x_core, f_y - f_y_core
+        f_x, f_y = self.nfwAlpha(R, Rs, rho0_input, r_trunc, r_core, x_, y_)
+
+        return f_x, f_y
 
     def hessian(self, x, y, Rs, theta_Rs, r_trunc, r_core, center_x=0, center_y=0):
 
@@ -145,6 +146,30 @@ class coreTNFW(object):
         Fx = self._F(x, tau)
         Fx_core = self._F(x, float(r_core) * Rs ** -1)
         return 2 * rho0 * Rs * (Fx - Fx_core)
+
+    def mass_rescale(self, Rs, rho0, r_trunc, r_core):
+
+        """
+        computes a factor that rescales a coredTNFW such that the total
+        mass within Rmax is the same as the TNFW profile
+        :param Rmax:
+        :param Rs:
+        :param rho0:
+        :param r_trunc:
+        :param r_core:
+        :return:
+        """
+        Rs = float(Rs)
+        tau = r_trunc * Rs ** -1
+        tau_core = r_core * Rs ** -1
+        m_3d_tnfw = 4. * np.pi * rho0 * Rs ** 3 * \
+               ((tau ** 2 - 1) * np.log(tau) + tau * np.pi - (tau ** 2 + 1))
+        m_3d_core = 4. * np.pi * rho0 * Rs ** 3 * \
+               ((tau_core ** 2 - 1) * np.log(tau_core) + tau_core * np.pi - (tau_core ** 2 + 1))
+
+        return m_3d_tnfw * m_3d_core ** -1
+
+
 
     def mass_3d_infinity(self, R, Rs, rho0, r_trunc, r_core):
         """
@@ -427,18 +452,23 @@ class coreTNFW(object):
         return theta_Rs
 
 t = coreTNFW()
+tnfw = TNFW()
 
 Rs = 0.1
 R = np.linspace(0.01 * Rs, 50*Rs, 1000)
 
 tau = 20
-p = 0.8
+p = 0.5
 
 r_trunc = tau*Rs
 r_core = p*Rs
 
-rho = t.density(R, Rs, 1, r_trunc, r_core)
+print(t.mass_rescale(Rs, 1, r_trunc, r_core))
+
+dx, dy = t.derivatives(R/Rs, 0, Rs, 1, r_trunc, r_core)
+dxt, dyt = tnfw.derivatives(R/Rs, 0, Rs, 1, r_trunc)
 import matplotlib.pyplot as plt
-plt.loglog(R / Rs, rho)
+plt.loglog(R / Rs, dx)
+plt.loglog(R / Rs, dxt, color='k')
 plt.show()
 
