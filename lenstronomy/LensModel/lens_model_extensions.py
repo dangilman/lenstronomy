@@ -3,7 +3,6 @@ import lenstronomy.Util.util as util
 import lenstronomy.Util.mask as mask_util
 import lenstronomy.Util.param_util as param_util
 
-
 class LensModelExtensions(object):
     """
     class with extension routines not part of the LensModel core routines

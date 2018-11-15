@@ -423,3 +423,4 @@ class TNFW(object):
         """
         theta_Rs = rho0 * (4 * Rs ** 2 * (1 + np.log(1. / 2.)))
         return theta_Rs
+

@@ -32,9 +32,9 @@ class TBurk(object):
         x_ = x - center_x
         y_ = y - center_y
 
-        mproj = p * self._projected_mass_integral(X, p, tau)
+        mproj = self._projected_mass_integral(X, p, tau)
 
-        a = 4 * rho0 * Rs * mproj * X ** -2
+        a = 4 * rho0 * Rs * tau**2 * mproj * X ** -2
 
         return a * x_, a * y_
 
@@ -46,7 +46,7 @@ class TBurk(object):
         y = R * Rs ** -1
         tau = r_trunc * Rs ** -1
 
-        return p * rho0*tau**2*((p+y) * (p**2 + y**2) * (tau**2 + y**2)) ** -1
+        return rho0*tau**2*((p+y) * (p**2 + y**2) * (tau**2 + y**2)) ** -1
 
     def density_2d(self, x, y, Rs, rho0, r_trunc, r_core, center_x=0, center_y=0):
 
@@ -59,7 +59,7 @@ class TBurk(object):
         p = r_core * Rs ** -1
         tau = r_trunc * Rs ** -1
 
-        projection = p * self._projection_integral(X, p, tau)
+        projection = self._projection_integral(X, p, tau)
 
         return Rs * rho0 * tau ** 2 * projection
 
@@ -68,48 +68,44 @@ class TBurk(object):
 
     def _projected_mass_integral(self, x, p, tau):
 
-        if isinstance(x, list):
-            x = np.array(x)
+        x = np.array(x)
 
-        m2d = self._projection_mass_numerical(x, p ,tau)
+        x_shape_0 = x.shape
 
-        return 2 * np.pi * m2d
+        integral = []
 
-    def _projection_mass_numerical(self, xmax, p, tau):
+        for i, xi in enumerate(x.ravel()):
 
-        if isinstance(xmax, int) or isinstance(xmax, float):
-            projected_m = self._integrate_mprojected(xmax, p, tau)
+            mproj = self._integrate_mproj(xi, p, tau)
+            integral.append(mproj)
+
+        integral = np.array(integral)
+
+        return 2 * np.pi * integral.reshape(x_shape_0)
+
+    def _integrate_mproj(self, x, p, tau, x_min = 0.001, dx_min = 0.001):
+
+        def _integrand(x,p,tau):
+            kappa = self._projection_integral(x, p, tau)
+            return x * kappa
+
+        if x < p:
+
+            integral = quad(_integrand, x_min, min(p-dx_min,x), args=(p, tau))[0]
+
         else:
-            shape_x = xmax.shape
-            xmax_long = xmax.ravel()
-            projected_m = np.zeros_like(xmax_long)
-            for i, xi in enumerate(xmax.ravel()):
-                projected_m[i] = self._integrate_mprojected(xi, p, tau)
-            projected_m.reshape(shape_x)
+            #print(x, p)
+            integral_low = quad(_integrand, x_min, p - dx_min, args=(p, tau))[0]
+            #print(integral_low)
+            integral_high = quad(_integrand, p+dx_min, x, args=(p, tau))[0]
+            #print(integral_high)
+            integral = integral_low + integral_high
+        return integral
 
-        return projected_m
-
-    def _mproj_integrand(self, x, p, tau):
-
-        return x * self._projection_integral(x, p, tau)
-
-    def _integrate_mprojected(self, xmax_value, p, tau):
-
-
-        if xmax_value > p + self._dx:
-            projected_m = quad(self._mproj_integrand, self._dx, p - self._dx, args=(p, tau))[0]
-            projected_m += quad(self._mproj_integrand, p + self._dx, xmax_value, args=(p, tau))[0]
-        else:
-            projected_m = quad(self._mproj_integrand, self._dx, xmax_value, args=(p, tau))[0]
-
-
-        return projected_m
-
-
-    def _projection_mass_plessx(self, x, p, tau):
+    """
+        def _projection_mass_plessx(self, x, p, tau):
         pass
-
-    def _projection_mass_pgreaterx(self, x, p, tau):
+        def _projection_mass_pgreaterx(self, x, p, tau):
 
         F1 = np.sqrt(p ** 2 - x ** 2)
         F2 = np.sqrt(x ** 2 + tau ** 2)
@@ -128,6 +124,7 @@ class TBurk(object):
         denom = ((F1 * F2 * (p ** 5 - p * tau ** 4))) ** -1
 
         return numerator * denom
+    """
 
     def _projection_integral(self, x, p, tau):
 
@@ -173,14 +170,22 @@ class TBurk(object):
            (2*np.arctanh(p/np.sqrt(p**2 + x**2)))/(np.sqrt(p**2 + x**2)*(p**3 - p*tau**2)) +
            (4*tau*np.arctanh(tau/np.sqrt(x**2 + tau**2)))/(np.sqrt(x**2 + tau**2)*(p**4 - tau**4)))
 
-    def _projection_pgreaterx(self, x, p, tau):
+    def _projection_pgreaterx(self, x, p, tau, d_arg = 0.005):
+
+        def log_function(x,p,t):
+            arg = (1 + 2*t*(t - np.sqrt(x**2+t**2)) * x ** -2)
+            if isinstance(arg, np.ndarray):
+                arg[np.where(arg<d_arg)] = d_arg
+            else:
+                arg = max(arg, d_arg)
+            return np.log(arg)
 
         return (np.pi * (-(np.sqrt(p ** 4 - x ** 4) / (p * (p ** 2 + x ** 2))) +
               (2 * p * np.sqrt((p ** 2 - x ** 2) * (x ** 2 + tau ** 2))) / (
                            (p ** 2 + tau ** 2) * (x ** 2 + tau ** 2)))) / (2. * np.sqrt(p ** 2 - x ** 2) * (p ** 2 - tau ** 2)) + ((2 * (-p ** 2 + tau ** 2) * np.arctanh(np.sqrt(p ** 2 - x ** 2) / p)) / (p * (p ** 2 + tau ** 2)) -
         (2 * np.sqrt(p ** 4 - x ** 4) * np.arctanh(p / np.sqrt(p ** 2 + x ** 2))) / (p * (p ** 2 + x ** 2)) -
          (2 *tau * np.sqrt((p ** 2 - x ** 2) * (x ** 2 + tau ** 2)) *
-        np.log((x ** 2 + 2 *tau * (tau - np.sqrt(x ** 2 + tau ** 2))) / x ** 2)) /
+          log_function(x, p, tau)) /
         ((p ** 2 + tau ** 2) * (x ** 2 + tau ** 2))) / (
                     2. * np.sqrt(p ** 2 - x ** 2) * (p ** 2 - tau ** 2))
 
@@ -196,22 +201,27 @@ from lenstronomy.LensModel.Profiles.tnfw import TNFW
 tnfw = TNFW()
 rho = 10000
 Rs = 0.6
-tau = 10
-p = 0.5
-x = np.linspace(0.1 * Rs, 5 * Rs, 100)
+tau = 20
+p = 0.4
+x = np.linspace(0.1 * Rs, 50 * Rs, 1000)
 
 r_trunc = tau*Rs
 r_core = p*Rs
 
 t = TBurk()
+
+#print(t._integrate_mprojected(0.3, p, tau))
+#a=input('continue')
 import matplotlib.pyplot as plt
 #print(np.log((x ** 2 + 2 *tau * (tau - np.sqrt(x ** 2 + tau ** 2))) / x ** 2))
 dx, dy = t.derivatives(x, 0, Rs, 1, r_trunc, p)
 dxtnfw, _ = tnfw.derivatives(x, 0 , Rs, 1, r_trunc)
+norm = dxtnfw[-1] * dx[-1] ** -1
+#mproj = t._projected_mass_integral(x, p, tau)
 
 #plt.loglog(x/Rs, t._projected_mass_integral(x, p, tau), color='k')
 #plt.loglog(x/Rs, proj2, color='r')
-plt.loglog(x/Rs, dx, color='r')
+plt.plot(x/Rs, dx * norm, color='r')
 plt.loglog(x/Rs, dxtnfw, color='k')
 
 plt.show()
