@@ -106,7 +106,7 @@ class coreBurkert(object):
         p = Rs * r_core ** -1
         gx = self._G(x, p)
 
-        m_2d = 2 * np.pi * rho0 * Rs ** 3 * gx
+        m_2d = 4 * np.pi * rho0 * Rs ** 3 * gx
 
         return m_2d
 
@@ -127,7 +127,7 @@ class coreBurkert(object):
 
         gx = self._G(x, p)
 
-        a = 2 * rho0 * Rs ** 2 * gx / x
+        a = 4 * rho0 * Rs ** 2 * gx / x
 
         return a * ax_x / R, a * ax_y / R
 
@@ -165,7 +165,7 @@ class coreBurkert(object):
         p = Rs * r_core ** -1
         Fx = self._F(x, p)
 
-        return 2 * rho0 * Rs * Fx
+        return rho0 * Rs * Fx
 
     def mass_3d(self, R, Rs, rho0, r_core):
         """
@@ -242,7 +242,7 @@ class coreBurkert(object):
 
     def _H(self, x, p):
 
-        prefactor = (p + p ** 3) ** -1 * p
+        prefactor = 2*(p + p ** 3) ** -1 * p
 
         if isinstance(x, np.ndarray):
 
@@ -318,7 +318,7 @@ class coreBurkert(object):
         :param p: r_core / Rs
         :return:
         """
-        prefactor = 0.5 * (1 + p ** 2) ** -1 * p
+        prefactor = (1 + p ** 2) ** -1 * p
 
         if isinstance(x, np.ndarray):
 
@@ -360,7 +360,7 @@ class coreBurkert(object):
         :return:
         """
 
-        prefactor = (p + p ** 3) ** -1 * p
+        prefactor = (1 + p ** 2) ** -1
 
         if isinstance(x, np.ndarray):
 
@@ -413,7 +413,7 @@ class coreBurkert(object):
 
         gx = self._G(1, p)
 
-        rho0 = theta_Rs / (2 * Rs ** 2 * gx)
+        rho0 = theta_Rs / (4 * Rs ** 2 * gx)
 
         return rho0
 
@@ -421,8 +421,7 @@ class coreBurkert(object):
 
         p = Rs / r_core
         gx = self._G(1, p)
-        alpha = 2 * Rs ** 2 * gx * rho0
+        alpha = 4 * Rs ** 2 * gx * rho0
 
         return alpha
-
 
