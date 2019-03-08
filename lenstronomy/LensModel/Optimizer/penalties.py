@@ -137,6 +137,7 @@ class Penalties(object):
             if self.params_to_constrain is not None:
                 print('param penalty: ',self.param_penalty[index])
 
+
         if mag_penalty is None:
             mag_penalty = 10**10
         if src_penalty is None:
@@ -261,7 +262,9 @@ class Penalties(object):
                     for i, dx_dy in enumerate(self.tol_image):
                         image_plane_penalty += 0.5 * (dx[i] + dy[i]) * self.tol_image[i] ** -2
                 else:
+
                     image_plane_penalty = np.sum(0.5 * (dx + dy) * self.tol_image ** -2)
+                    print(self.src_penalty[-1], self.mag_penalty[-1], self.centroid_penalty[-1])
 
                 return image_plane_penalty
 
