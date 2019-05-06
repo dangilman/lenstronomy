@@ -12,8 +12,6 @@ class Params(object):
         if optimizer_routine not in self.known_routines:
             raise Exception('routine '+str(optimizer_routine)+' not recognized.')
 
-        self.routine_name = optimizer_routine
-
         if optimizer_routine == 'fixed_powerlaw_shear':
             routine = FixedPowerLaw_Shear(lens_list,arg_list,xpos,ypos)
         elif optimizer_routine == 'variable_powerlaw_shear':

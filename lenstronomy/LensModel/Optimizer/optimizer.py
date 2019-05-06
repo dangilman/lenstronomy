@@ -187,7 +187,15 @@ class Optimizer(object):
             # Here, the solver has the instance of "lensing_class" or "LensModel" for multiplane/singleplane respectively.
             print('Warning: possibly a bad fit.')
             x_image, y_image = self.solver.findBrightImage(source_x, source_y, kwargs_lens_final, arrival_time_sort=False)
-            #x_image, y_image = self.solver.image_position_from_source(source_x, source_y, kwargs_lens_final, arrival_time_sort = False)
+
+            if len(x_image) != len(self.x_pos) or len(y_image) != len(self.y_pos):
+                x_image, y_image = self.solver.findBrightImage(source_x, source_y, kwargs_lens_final,
+                                                               arrival_time_sort=False, num_iter_max=15)
+                if len(x_image) != len(self.x_pos) or len(y_image) != len(self.y_pos):
+                    print('Warning: optimization returns wrong number of images. '
+                          'Returning the input image positions and best fit parameters.')
+                x_image, y_image = self.x_pos, self.y_pos
+
         if self._verbose:
             print('optimization done.')
             print('Recovered source position: ', (srcx, srcy))
