@@ -89,7 +89,6 @@ def transform_e1e2(x, y, e1, e2, center_x=0, center_y=0):
     det = np.sqrt((1-e1)*(1+e1) + e2**2)
     return x_ / det, y_ / det
 
-
 def ellipticity2phi_q(e1, e2):
     """
     :param e1:

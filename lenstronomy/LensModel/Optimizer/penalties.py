@@ -1,5 +1,5 @@
 import numpy as np
-from lenstronomy.Util.param_util import cart2polar,polar2cart
+from lenstronomy.Util.param_util import ellipticity2phi_gamma, ellipticity2phi_q
 from lenstronomy.Util.util import sort_image_index
 
 class Penalties(object):
@@ -206,7 +206,7 @@ class Penalties(object):
 
                 index1 = self.param_class.routine.params_to_vary.index('shear_e1')
                 index2 = self.param_class.routine.params_to_vary.index('shear_e2')
-                shear,_ = cart2polar(lens_args_tovary[index1],lens_args_tovary[index2])
+                _, shear = ellipticity2phi_gamma(lens_args_tovary[index1],lens_args_tovary[index2])
 
                 penalty += 0.5 * ((shear - self.params_to_constrain['shear'][0])*self.params_to_constrain['shear'][1]**-1)**2
 
@@ -214,10 +214,22 @@ class Penalties(object):
 
                 index1 = self.param_class.routine.params_to_vary.index('shear_e1')
                 index2 = self.param_class.routine.params_to_vary.index('shear_e2')
-                _, shear_pa = cart2polar(lens_args_tovary[index1], lens_args_tovary[index2])
-
+                phi, _ = ellipticity2phi_gamma(lens_args_tovary[index1], lens_args_tovary[index2])
+                shear_pa = phi * (180./np.pi)
                 penalty += 0.5 * (
                             (shear_pa - self.params_to_constrain['shear_pa'][0]) * self.params_to_constrain['shear_pa'][1] ** -1) ** 2
+
+            elif pname == 'ellip':
+
+                index1 = self.param_class.routine.params_to_vary.index('e1')
+                index2 = self.param_class.routine.params_to_vary.index('e2')
+                _, q = ellipticity2phi_q(lens_args_tovary[index1], lens_args_tovary[index2])
+                ellip = 1 - q
+
+                penalty += 0.5 * (
+                        (ellip - self.params_to_constrain['ellip'][0]) * self.params_to_constrain['ellip'][
+                    1] ** -1) ** 2
+
 
             else:
 
