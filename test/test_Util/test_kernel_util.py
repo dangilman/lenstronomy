@@ -268,5 +268,35 @@ def test_subgrid_rebin():
     assert np.sum((kernel_pixel - kernel)**2) < 0.1
 
 
+def test_mge_kernel():
+    from lenstronomy.LightModel.Profiles.gaussian import MultiGaussian
+    mg = MultiGaussian()
+    fraction_list = [0.2, 0.7, 0.1]
+    sigmas_scaled = [5, 10, 15]
+    x, y = util.make_grid(numPix=101, deltapix=1)
+    kernel = mg.function(x, y, amp=fraction_list, sigma=sigmas_scaled)
+    kernel = util.array2image(kernel)
+
+    amps, sigmas, norm = kernel_util.mge_kernel(kernel, order=10)
+    print(amps, sigmas, norm)
+    kernel_new = mg.function(x, y, amp=amps, sigma=sigmas)
+    kernel_new = util.array2image(kernel_new)
+    #npt.assert_almost_equal(sigmas_scaled, sigmas)
+    #npt.assert_almost_equal(amps, fraction_list)
+    npt.assert_almost_equal(kernel_new, kernel, decimal=3)
+
+
+def test_kernel_average_pixel():
+    from lenstronomy.LightModel.Profiles.gaussian import Gaussian
+    gaussian = Gaussian()
+    subgrid_res = 3
+    x_grid, y_gird = Util.make_grid(9, 1., subgrid_res)
+    sigma = 2
+    flux = gaussian.function(x_grid, y_gird, amp=1, sigma_x=sigma, sigma_y=sigma)
+    kernel_super = Util.array2image(flux)
+    kernel_pixel = kernel_util.kernel_average_pixel(kernel_super, supersampling_factor=subgrid_res)
+    npt.assert_almost_equal(np.sum(kernel_pixel), np.sum(kernel_super))
+
+
 if __name__ == '__main__':
     pytest.main()

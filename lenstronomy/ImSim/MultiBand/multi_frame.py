@@ -1,7 +1,7 @@
 from lenstronomy.ImSim.MultiBand.multi_data_base import MultiDataBase
-from lenstronomy.ImSim.image_model import ImageModel
+from lenstronomy.ImSim.image_linear_solve import ImageLinearFit
 from lenstronomy.LensModel.lens_model import LensModel
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 import lenstronomy.ImSim.de_lens as de_lens
 
@@ -38,10 +38,10 @@ class MultiFrame(MultiDataBase):
             self._idex_lens_list.append(index_lens_list)
             lens_model_list_sub = [lens_model_list[k] for k in index_lens_list]
             lens_model_class = LensModel(lens_model_list=lens_model_list_sub)
-            data_i = Data(kwargs_data=kwargs_data)
+            data_i = ImageData(**kwargs_data)
             psf_i = PSF(kwargs_psf=kwargs_psf)
             point_source_class_i = copy.deepcopy(point_source_class)
-            imageModel = ImageModel(data_i, psf_i, lens_model_class, source_model_class,
+            imageModel = ImageLinearFit(data_i, psf_i, lens_model_class, source_model_class,
                                         lens_light_model_class, point_source_class_i,
                                         kwargs_numerics=kwargs_numerics)
             imageModel_list.append(imageModel)
@@ -82,7 +82,7 @@ class MultiFrame(MultiDataBase):
             if self._compute_bool[i] is True:
                 kwargs_lens_i = [kwargs_lens[k] for k in self._idex_lens_list[i]]
                 A_i = self._imageModel_list[i].linear_response_matrix(kwargs_lens_i, kwargs_source, kwargs_lens_light, kwargs_ps)
-                if A == []:
+                if len(A) == 0:
                     A = A_i
                 else:
                     A = np.append(A, A_i, axis=1)
@@ -99,7 +99,7 @@ class MultiFrame(MultiDataBase):
         for i in range(self._num_bands):
             if self._compute_bool[i] is True:
                 d_i = self._imageModel_list[i].data_response
-                if d == []:
+                if len(d) == 0:
                     d = d_i
                 else:
                     d = np.append(d, d_i)
@@ -118,7 +118,7 @@ class MultiFrame(MultiDataBase):
             if self._compute_bool[i] is True:
                 num_data = self.num_response_list[i]
                 array_i = array[k:k + num_data]
-                image_i = self._imageModel_list[i].ImageNumerics.array2image(array_i)
+                image_i = self._imageModel_list[i].array_masked2image(array_i)
                 image_list.append(image_i)
                 k += num_data
         return image_list
@@ -135,7 +135,7 @@ class MultiFrame(MultiDataBase):
                 kwargs_lens_i = [kwargs_lens[k] for k in self._idex_lens_list[i]]
                 C_D_response_i, model_error_i = self._imageModel_list[i].error_response(kwargs_lens_i, kwargs_ps)
                 model_error.append(model_error_i)
-                if C_D_response == []:
+                if len(C_D_response) == 0:
                     C_D_response = C_D_response_i
                 else:
                     C_D_response = np.append(C_D_response, C_D_response_i)
@@ -160,7 +160,7 @@ class MultiFrame(MultiDataBase):
         index = 0
         for i in range(self._num_bands):
             if self._compute_bool[i] is True:
-                logL += self._imageModel_list[i].Data.log_likelihood(im_sim_list[index], self._imageModel_list[i].ImageNumerics.mask, model_error_list[index])
+                logL += self._imageModel_list[i].Data.log_likelihood(im_sim_list[index], self._imageModel_list[i].mask, model_error_list[index])
                 index += 1
         if cov_matrix is not None and source_marg:
             marg_const = de_lens.marginalisation_const(cov_matrix)

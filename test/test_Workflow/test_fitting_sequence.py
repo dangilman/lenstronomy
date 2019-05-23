@@ -9,7 +9,7 @@ from lenstronomy.PointSource.point_source import PointSource
 from lenstronomy.LensModel.lens_model import LensModel
 from lenstronomy.LightModel.light_model import LightModel
 from lenstronomy.Workflow.fitting_sequence import FittingSequence
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 
 
@@ -30,7 +30,7 @@ class TestFittingSequence(object):
         # PSF specification
 
         self.kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exp_time, sigma_bkg)
-        data_class = Data(self.kwargs_data)
+        data_class = ImageData(**self.kwargs_data)
         self.kwargs_psf = sim_util.psf_configure_simple(psf_type='GAUSSIAN', fwhm=fwhm, kernelsize=11, deltaPix=deltaPix,
                                                truncate=3,
                                                kernel=None)
@@ -158,6 +158,8 @@ class TestFittingSequence(object):
         kwargs_mcmc = {'sigma_scale': 0.1, 'n_burn': 1, 'n_run': 1, 'walkerRatio': 2}
         fitting_list.append(['MCMC', kwargs_mcmc])
         kwargs_mcmc['re_use_samples'] = True
+        fitting_list.append(['MCMC', kwargs_mcmc])
+        kwargs_mcmc['sampler_type'] = 'EMCEE'
         fitting_list.append(['MCMC', kwargs_mcmc])
         kwargs_align = {'lowerLimit': -0.1, 'upperLimit': 0.1, 'n_particles': 2, 'n_iterations': 2}
         fitting_list.append(['align_images', kwargs_align])

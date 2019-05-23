@@ -1,5 +1,5 @@
-from lenstronomy.ImSim.image_model import ImageModel
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.ImSim.image_linear_solve import ImageLinearFit
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 from lenstronomy.ImSim.MultiBand.multi_data_base import MultiDataBase
 
@@ -19,11 +19,11 @@ class MultiBand(MultiDataBase):
             kwargs_data = multi_band_list[i][0]
             kwargs_psf = multi_band_list[i][1]
             kwargs_numerics = multi_band_list[i][2]
-            data_i = Data(kwargs_data=kwargs_data)
+            data_i = ImageData(**kwargs_data)
             psf_i = PSF(kwargs_psf=kwargs_psf)
-            imageModel = ImageModel(data_i, psf_i, lens_model_class, source_model_class,
-                                                    lens_light_model_class, point_source_class,
-                                                    kwargs_numerics=kwargs_numerics)
+            imageModel = ImageLinearFit(data_i, psf_i, lens_model_class, source_model_class,
+                                        lens_light_model_class, point_source_class,
+                                        kwargs_numerics=kwargs_numerics)
             imageModel_list.append(imageModel)
         super(MultiBand, self).__init__(imageModel_list, compute_bool=compute_bool)
 

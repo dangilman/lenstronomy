@@ -4,7 +4,7 @@ import numpy.testing as npt
 import numpy as np
 import pytest
 
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 from lenstronomy.ImSim.MultiBand.multi_exposures import MultiExposures
 import lenstronomy.Util.param_util as param_util
@@ -32,7 +32,7 @@ class TestImageModel(object):
         # PSF specification
 
         kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exp_time, sigma_bkg)
-        data_class = Data(kwargs_data)
+        data_class = ImageData(**kwargs_data)
         kwargs_psf = sim_util.psf_configure_simple(psf_type='GAUSSIAN', fwhm=fwhm, kernelsize=31, deltaPix=deltaPix,
                                                truncate=5)
         psf_class = PSF(kwargs_psf)
@@ -88,7 +88,7 @@ class TestImageModel(object):
 
     def test_likelihood_data_given_model(self):
         logL = self.imageModel.likelihood_data_given_model(self.kwargs_lens, self.kwargs_source, self.kwargs_lens_light, self.kwargs_ps, source_marg=False)
-        chi2_reduced = logL * 2 / self.imageModel.num_data_evaluate()
+        chi2_reduced = logL * 2 / self.imageModel.num_data_evaluate
         npt.assert_almost_equal(chi2_reduced, -1, 1)
 
 

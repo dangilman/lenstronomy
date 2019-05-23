@@ -4,7 +4,7 @@ import numpy.testing as npt
 import pytest
 import numpy as np
 
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 from lenstronomy.ImSim.MultiBand.multiband import MultiBand
 import lenstronomy.Util.param_util as param_util
@@ -32,7 +32,7 @@ class TestImageModel(object):
         # PSF specification
 
         kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exp_time, sigma_bkg)
-        data_class = Data(kwargs_data)
+        data_class = ImageData(**kwargs_data)
         kwargs_psf = sim_util.psf_configure_simple(psf_type='GAUSSIAN', fwhm=fwhm, kernelsize=31, deltaPix=deltaPix,
                                                truncate=5)
         psf_class = PSF(kwargs_psf)
@@ -90,7 +90,7 @@ class TestImageModel(object):
         npt.assert_almost_equal(logL - logLmarg, 0, decimal=-2)
 
     def test_numData_evaluate(self):
-        numData = self.imageModel.num_data_evaluate()
+        numData = self.imageModel.num_data_evaluate
         assert numData == 10000
 
 

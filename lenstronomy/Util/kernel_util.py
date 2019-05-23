@@ -7,6 +7,7 @@ import scipy.ndimage.interpolation as interp
 import lenstronomy.Util.util as util
 import lenstronomy.Util.image_util as image_util
 from lenstronomy.LightModel.Profiles.gaussian import Gaussian
+import lenstronomy.Util.multi_gauss_expansion as mge
 
 
 def de_shift_kernel(kernel, shift_x, shift_y, iterations=20):
@@ -225,6 +226,35 @@ def pixel_kernel(point_source_kernel, subgrid_res=7):
     return kernel_norm(kernel_pixel)
 
 
+def kernel_average_pixel(kernel_super, supersampling_factor):
+    """
+    computes the effective convolution kernel assuming a uniform surface brightness on the scale of a pixel
+
+    :param kernel_super: supersampled PSF of a point source
+    :param supersampling_factor: supersampling factor (int)
+    :return:
+    """
+    kernel_sum = np.sum(kernel_super)
+    kernel_size = int(round(len(kernel_super)/float(supersampling_factor) + 0.5))
+    if kernel_size % 2 == 0:
+        kernel_size += 1
+    n_high = kernel_size*supersampling_factor
+    kernel_pixel = np.zeros((kernel_size*supersampling_factor, kernel_size*supersampling_factor))
+    for i in range(supersampling_factor):
+        k_x = int((kernel_size - 1) / 2 * supersampling_factor + i)
+        for j in range(supersampling_factor):
+            k_y = int((kernel_size - 1) / 2 * supersampling_factor + j)
+            kernel_pixel = image_util.add_layer2image(kernel_pixel, k_x, k_y, kernel_super)
+
+    if supersampling_factor % 2 == 0:
+        kernel_pixel = averaging_even_kernel(kernel_pixel, supersampling_factor)
+    else:
+        kernel_pixel = util.averaging(kernel_pixel, numGrid=n_high,
+                                                   numPix=kernel_size)
+    kernel_pixel /= np.sum(kernel_pixel)
+    return kernel_pixel * kernel_sum
+
+
 def kernel_gaussian(kernel_numPix, deltaPix, fwhm):
     sigma = util.fwhm2sigma(fwhm)
     #if kernel_numPix % 2 == 0:
@@ -313,20 +343,21 @@ def cutout_source(x_pos, y_pos, image, kernelsize, shift=True):
 
 def fwhm_kernel(kernel):
     """
-    computes the full width at half maximum of a (PSF) kernel
-    :param kernel: (psf) kernel, 2d numpy array
-    :return: fwhm in units of pixels
+
+    :param kernel:
+    :return:
     """
     n = len(kernel)
+    center = (n - 1) / 2.
+    I_r = image_util.radial_profile(kernel, center=[center, center])
     if n % 2 == 0:
         raise ValueError('only works with odd number of pixels in kernel!')
     max_flux = kernel[int((n-1)/2), int((n-1)/2)]
-    I_2 = max_flux/2.
-    I_r = kernel[int((n-1)/2), int((n-1)/2):]
-    r = np.linspace(0, (n-1)/2, int((n + 1) / 2))
-    for i in range(1, len(r)):
+    I_2 = max_flux / 2.
+    r = np.linspace(0, (n - 1) / 2, int((n + 1) / 2)) + 0.33
+    for i in range(1, len(I_r)):
         if I_r[i] < I_2:
-            fwhm_2 = (I_2 - I_r[i-1])/(I_r[i] - I_r[i-1]) + r[i-1]
+            fwhm_2 = (I_2 - I_r[i - 1]) / (I_r[i] - I_r[i - 1]) + r[i - 1]
             return fwhm_2 * 2
     raise ValueError('The kernel did not drop to half the max value - fwhm not determined!')
 
@@ -353,3 +384,21 @@ def estimate_amp(data, x_pos, y_pos, psf_kernel):
     else:
         amp_estimated = 0
     return amp_estimated
+
+
+def mge_kernel(kernel, order=5):
+    """
+    azimutal Multi-Gaussian expansion of a pixelized kernel
+
+    :param kernel: 2d numpy array
+    :return:
+    """
+    # radial average
+    n = len(kernel)
+    center = (n - 1) / 2.
+    psf_r = image_util.radial_profile(kernel, center=[center, center])
+    # MGE of radial average
+    n_r = len(psf_r)
+    r_array = np.linspace(start=0., stop=n_r - 1, num=n_r)
+    amps, sigmas, norm = mge.mge_1d(r_array, psf_r, N=order, linspace=True)
+    return amps, sigmas, norm

@@ -1,5 +1,5 @@
-from lenstronomy.ImSim.image_model import ImageModel
-from lenstronomy.Data.imaging_data import Data
+from lenstronomy.ImSim.image_linear_solve import ImageLinearFit
+from lenstronomy.Data.imaging_data import ImageData
 from lenstronomy.Data.psf import PSF
 from lenstronomy.LightModel.light_model import LightModel
 from lenstronomy.ImSim.MultiBand.multi_data_base import MultiDataBase
@@ -27,7 +27,7 @@ class MultiBandMultiModel(MultiDataBase):
             kwargs_data = multi_band_list[i][0]
             kwargs_psf = multi_band_list[i][1]
             kwargs_numerics = multi_band_list[i][2]
-            data_i = Data(kwargs_data=kwargs_data)
+            data_i = ImageData(**kwargs_data)
             psf_i = PSF(kwargs_psf=kwargs_psf)
 
             index_source_list = multi_band_list[i][3].get('index_source_light_model', [k for k in range(len(source_model_list))])
@@ -35,14 +35,14 @@ class MultiBandMultiModel(MultiDataBase):
             source_model_list_sub = [source_model_list[k] for k in index_source_list]
             source_model_class = LightModel(light_model_list=source_model_list_sub)
 
-            index_lens_light_list = multi_band_list[i][3].get('index_lens_light_model', [k for k in range(len(source_model_list))])
+            index_lens_light_list = multi_band_list[i][3].get('index_lens_light_model', [k for k in range(len(lens_light_model_list))])
             self._index_lens_light_list.append(index_lens_light_list)
             lens_light_model_list_sub = [lens_light_model_list[k] for k in index_lens_light_list]
             lens_light_model_class = LightModel(light_model_list=lens_light_model_list_sub)
 
-            imageModel = ImageModel(data_i, psf_i, lens_model_class, source_model_class,
-                                                    lens_light_model_class, point_source_class,
-                                                    kwargs_numerics=kwargs_numerics)
+            imageModel = ImageLinearFit(data_i, psf_i, lens_model_class, source_model_class,
+                                        lens_light_model_class, point_source_class,
+                                        kwargs_numerics=kwargs_numerics)
             imageModel_list.append(imageModel)
         super(MultiBandMultiModel, self).__init__(imageModel_list, compute_bool=compute_bool)
 
