@@ -14,7 +14,6 @@ class TestKDELikelihood(object):
     def setup(self):
         # set up seed
         np.random.seed(seed=41)
-        pass
 
     def test_kde_likelihood(self):
         # define redshift of lens and source
@@ -63,6 +62,3 @@ class TestKDELikelihood(object):
 
 if __name__ == '__main__':
     pytest.main()
-
-
-import corner.corner

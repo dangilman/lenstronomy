@@ -1,10 +1,11 @@
 __author__ = 'sibirrer'
 
 import numpy as np
-import scipy
+from scipy import ndimage
+from scipy import interpolate
+from scipy.ndimage import interpolation as interp
 import copy
 import lenstronomy.Util.util as util
-import scipy.ndimage.interpolation as interp
 
 
 def add_layer2image(grid2d, x_pos, y_pos, kernel, order=1):
@@ -71,8 +72,6 @@ def add_background(image, sigma_bkd):
     :param sigma_bkd: background noise (sigma)
     :return: a realisation of Gaussian noise of the same size as image
     """
-    if sigma_bkd < 0:
-        raise ValueError("Sigma background is smaller than zero! Please use positive values.")
     nx, ny = np.shape(image)
     background = np.random.randn(nx, ny) * sigma_bkd
     return background
@@ -88,12 +87,7 @@ def add_poisson(image, exp_time):
     """
     adds a poison (or Gaussian) distributed noise with mean given by surface brightness
     """
-    if isinstance(exp_time, int) or isinstance(exp_time, float):
-        if exp_time <= 0:
-            exp_time = 1
-    else:
-        mean_exp_time = np.mean(exp_time)
-        exp_time[exp_time < mean_exp_time/10] = mean_exp_time/10
+
     sigma = np.sqrt(np.abs(image)/exp_time) # Gaussian approximation for Poisson distribution, normalized to exposure time
     nx, ny = np.shape(image)
     poisson = np.random.randn(nx, ny) * sigma
@@ -108,7 +102,7 @@ def rotateImage(img, angle):
     :param angle: angle to be rotated (radian)
     :return: rotated image
     """
-    imgR = scipy.ndimage.rotate(img, angle, reshape=False)
+    imgR = ndimage.rotate(img, angle, reshape=False)
     return imgR
 
 
@@ -122,7 +116,7 @@ def re_size_array(x_in, y_in, input_values, x_out, y_out):
     :param y_out:
     :return:
     """
-    interp_2d = scipy.interpolate.interp2d(x_in, y_in, input_values, kind='linear')
+    interp_2d = interpolate.interp2d(x_in, y_in, input_values, kind='linear')
     #interp_2d = scipy.interpolate.RectBivariateSpline(x_in, y_in, input_values, kx=1, ky=1)
     out_values = interp_2d.__call__(x_out, y_out)
     return out_values
@@ -184,7 +178,7 @@ def coordInImage(x_coord, y_coord, numPix, deltapix):
 
 def re_size(image, factor=1):
     """
-    resizes image with nx x ny to nx/factor x ny/factor
+    re-sizes image with nx x ny to nx/factor x ny/factor
     :param image: 2d image with shape (nx,ny)
     :param factor: integer >=1
     :return:
@@ -274,20 +268,18 @@ def cut_edges(image, numPix):
     """
     nx, ny = image.shape
     if nx < numPix or ny < numPix:
-        print('WARNING: image can not be resized, in routine cut_edges.')
-        return image
-    if nx % 2 == 0 or ny % 2 == 0 or numPix % 2 == 0:
-        #pass
-        print("WARNING: image or cutout side are even number. This routine only works for odd numbers %s %s %s"
-                         % (nx, ny, numPix))
-    cx = int((nx-1)/2)
-    cy = int((ny-1)/2)
-    d = int((numPix-1)/2)
-    if nx % 2 == 0:
-        cx += 1
-    if ny % 2 == 0:
-        cy += 1
-    resized = image[cx-d:cx+d+1, cy-d:cy+d+1]
+        raise ValueError('image can not be resized, in routine cut_edges with image shape (%s %s) '
+                         'and desired new shape (%s %s)' % (nx, ny, numPix, numPix))
+    if (nx % 2 == 0 and ny % 2 == 1) or (nx % 2 == 1 and ny % 2 == 0):
+        raise ValueError('image with odd and even axis (%s %s) not supported for re-sizeing' % (nx, ny))
+    if (nx % 2 == 0 and numPix % 2 == 1) or (nx % 2 == 1 and numPix % 2 == 0):
+        raise ValueError('image can only be re-sized from even to even or odd to odd number.')
+
+    x_min = int((nx - numPix) / 2)
+    y_min = int((ny - numPix) / 2)
+    x_max = nx - x_min
+    y_max = ny - y_min
+    resized = image[x_min:x_max, y_min:y_max]
     return copy.deepcopy(resized)
 
 

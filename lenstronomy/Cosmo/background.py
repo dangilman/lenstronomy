@@ -32,12 +32,11 @@ class Background(object):
     def D_xy(self, z_observer, z_source):
         """
 
-        :param z_observer: observer
-        :param z_source: source
-        :return: angular diamter distance in units of Mpc
+        :param z_observer: observer redshift
+        :param z_source: source redshift
+        :return: angular diameter distance in units of Mpc
         """
-        a_S = self.a_z(z_source)
-        D_xy = (self.cosmo.comoving_transverse_distance(z_source) - self.cosmo.comoving_transverse_distance(z_observer))*a_S
+        D_xy = self.cosmo.angular_diameter_distance_z1z2(z_observer, z_source)
         return D_xy.value
 
     def D_dt(self, z_lens, z_source):
@@ -46,7 +45,7 @@ class Background(object):
 
         :param z_lens: redshift of lens
         :param z_source: redshift of source
-        :return: time-delay distance in units of Mpc
+        :return: time-delay distance in units of proper Mpc
         """
         return self.D_xy(0, z_lens) * self.D_xy(0, z_source) / self.D_xy(z_lens, z_source) * (1 + z_lens)
 
@@ -57,8 +56,9 @@ class Background(object):
         :param z_source: source
         :return: transverse comoving distance in units of Mpc
         """
-        T_xy = self.cosmo.comoving_transverse_distance(z_source) - self.cosmo.comoving_transverse_distance(z_observer)
-        return T_xy.value
+        D_xy = self.D_xy(z_observer, z_source)
+        T_xy = D_xy * (1 + z_source)
+        return T_xy
 
     @property
     def rho_crit(self):
@@ -68,5 +68,3 @@ class Background(object):
         """
         h = self.cosmo.H(0).value / 100.
         return 3 * h ** 2 / (8 * np.pi * const.G) * 10 ** 10 * const.Mpc / const.M_sun
-
-

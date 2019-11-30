@@ -148,26 +148,36 @@ def averaging_even_kernel(kernel_high_res, subgrid_res):
     :param subgrid_res: subsampling resolution (even number)
     :return: averaged undersampling kernel
     """
-    n_high = len(kernel_high_res)
-    n_low = int((n_high + 1) / subgrid_res)
+    n_kernel_high_res = len(kernel_high_res)
+    n_low = int(round(n_kernel_high_res / subgrid_res + 0.5))
+    if n_low % 2 == 0:
+        n_low += 1
+    n_high = int(n_low * subgrid_res - 1)
+    assert n_high % 2 == 1
+    if n_high == n_kernel_high_res:
+        kernel_high_res_edges = kernel_high_res
+    else:
+        i_start = int((n_high - n_kernel_high_res) / 2)
+        kernel_high_res_edges = np.zeros((n_high, n_high))
+        kernel_high_res_edges[i_start:-i_start, i_start:-i_start] = kernel_high_res
     kernel_low_res = np.zeros((n_low, n_low))
     # adding pixels that are fully within a single re-binned pixel
     for i in range(subgrid_res-1):
         for j in range(subgrid_res-1):
-            kernel_low_res += kernel_high_res[i::subgrid_res, j::subgrid_res]
+            kernel_low_res += kernel_high_res_edges[i::subgrid_res, j::subgrid_res]
     # adding half of a pixel that has over-lap with two pixels
     i = subgrid_res - 1
     for j in range(subgrid_res - 1):
-        kernel_low_res[1:, :] += kernel_high_res[i::subgrid_res, j::subgrid_res] / 2
-        kernel_low_res[:-1, :] += kernel_high_res[i::subgrid_res, j::subgrid_res] / 2
+        kernel_low_res[1:, :] += kernel_high_res_edges[i::subgrid_res, j::subgrid_res] / 2
+        kernel_low_res[:-1, :] += kernel_high_res_edges[i::subgrid_res, j::subgrid_res] / 2
     j = subgrid_res - 1
     for i in range(subgrid_res - 1):
-        kernel_low_res[:, 1:] += kernel_high_res[i::subgrid_res, j::subgrid_res] / 2
-        kernel_low_res[:, :-1] += kernel_high_res[i::subgrid_res, j::subgrid_res] / 2
+        kernel_low_res[:, 1:] += kernel_high_res_edges[i::subgrid_res, j::subgrid_res] / 2
+        kernel_low_res[:, :-1] += kernel_high_res_edges[i::subgrid_res, j::subgrid_res] / 2
     # adding a quarter of a pixel value that is at the boarder of four pixels
     i = subgrid_res - 1
     j = subgrid_res - 1
-    kernel_edge = kernel_high_res[i::subgrid_res, j::subgrid_res]
+    kernel_edge = kernel_high_res_edges[i::subgrid_res, j::subgrid_res]
     kernel_low_res[1:, 1:] += kernel_edge / 4
     kernel_low_res[:-1, 1:] += kernel_edge / 4
     kernel_low_res[1:, :-1] += kernel_edge / 4
@@ -230,7 +240,7 @@ def kernel_average_pixel(kernel_super, supersampling_factor):
     """
     computes the effective convolution kernel assuming a uniform surface brightness on the scale of a pixel
 
-    :param kernel_super: supersampled PSF of a point source
+    :param kernel_super: supersampled PSF of a point source (odd number per axis
     :param supersampling_factor: supersampling factor (int)
     :return:
     """
@@ -239,7 +249,9 @@ def kernel_average_pixel(kernel_super, supersampling_factor):
     if kernel_size % 2 == 0:
         kernel_size += 1
     n_high = kernel_size*supersampling_factor
-    kernel_pixel = np.zeros((kernel_size*supersampling_factor, kernel_size*supersampling_factor))
+    if n_high % 2 == 0:
+        n_high += 1
+    kernel_pixel = np.zeros((n_high, n_high))
     for i in range(supersampling_factor):
         k_x = int((kernel_size - 1) / 2 * supersampling_factor + i)
         for j in range(supersampling_factor):
@@ -261,45 +273,71 @@ def kernel_gaussian(kernel_numPix, deltaPix, fwhm):
     #    kernel_numPix += 1
     x_grid, y_grid = util.make_grid(kernel_numPix, deltaPix)
     gaussian = Gaussian()
-    kernel = gaussian.function(x_grid, y_grid, amp=1., sigma_x=sigma, sigma_y=sigma,
-                                         center_x=0, center_y=0)
+    kernel = gaussian.function(x_grid, y_grid, amp=1., sigma=sigma, center_x=0, center_y=0)
     kernel /= np.sum(kernel)
     kernel = util.array2image(kernel)
     return kernel
 
 
-def split_kernel(kernel, kernel_subgrid, subsampling_size, subgrid_res):
+def split_kernel(kernel_super, supersampling_kernel_size, supersampling_factor):
     """
     pixel kernel and subsampling kernel such that the convolution of both applied on an image can be
     performed, i.e. smaller subsampling PSF and hole in larger PSF
 
     :param kernel: PSF kernel of the size of the pixel
-    :param kernel_subgrid: subsampled kernel
-    :param subsampling_size: size of subsampling PSF in units of image pixels
+    :param kernel_super: subsampled kernel
+    :param supersampling_kernel_size: size of subsampling PSF in units of image pixels
     :return: pixel and subsampling kernel
     """
-    n = len(kernel)
-    n_sub = len(kernel_subgrid)
-    if subsampling_size % 2 == 0:
-        subsampling_size += 1
-    if subsampling_size > n:
-        subsampling_size = n
+    if supersampling_factor <= 1:
+        raise ValueError('To split a kernel, the supersampling_factor needs to be > 1, givn %s' %supersampling_factor)
+    if supersampling_kernel_size % 2 == 0:
+        raise ValueError('supersampling_kernel_size needs to be an odd number!')
+    n_super = len(kernel_super)
+    n_sub = supersampling_kernel_size * supersampling_factor
+    if n_sub % 2 == 0:
+        n_sub += 1
+    if n_sub > n_super:
+        n_sub = n_super
 
-    kernel_hole = copy.deepcopy(kernel)
-    n_min = int((n-1)/2 - (subsampling_size-1)/2)
-    n_max = int((n-1)/2 + (subsampling_size-1)/2 + 1)
+    kernel_hole = copy.deepcopy(kernel_super)
+    n_min = int((n_super-1) / 2 - (n_sub - 1) / 2)
+    n_max = int((n_super-1) / 2 + (n_sub - 1) / 2 + 1)
     kernel_hole[n_min:n_max, n_min:n_max] = 0
-    n_min_sub = int((n_sub - 1) / 2 - (subsampling_size*subgrid_res - 1) / 2)
-    n_max_sub = int((n_sub - 1) / 2 + (subsampling_size * subgrid_res - 1) / 2 + 1)
-    kernel_subgrid_cut = kernel_subgrid[n_min_sub:n_max_sub, n_min_sub:n_max_sub]
+    kernel_hole_resized = degrade_kernel(kernel_hole, degrading_factor=supersampling_factor)
+    kernel_subgrid_cut = kernel_super[n_min:n_max, n_min:n_max]
     flux_subsampled = np.sum(kernel_subgrid_cut)
-    flux_hole = np.sum(kernel_hole)
+    flux_hole = np.sum(kernel_hole_resized)
     if flux_hole > 0:
-        kernel_hole *= (1. - flux_subsampled) / np.sum(kernel_hole)
+        kernel_hole_resized *= (1. - flux_subsampled) / np.sum(kernel_hole_resized)
     else:
         kernel_subgrid_cut /= np.sum(kernel_subgrid_cut)
-    return kernel_hole, kernel_subgrid_cut
+    return kernel_hole_resized, kernel_subgrid_cut
 
+
+def degrade_kernel(kernel_super, degrading_factor):
+    """
+
+    :param kernel_super: higher resolution kernel (odd number per axis)
+    :param degrading_factor: degrading factor (effectively the supersampling resolution of the kernel given
+    :return: degraded kernel with odd axis number
+    """
+    if degrading_factor == 1:
+        return kernel_super
+    if degrading_factor % 2 == 0:
+        kernel_low_res = averaging_even_kernel(kernel_super, degrading_factor)
+    else:
+        n_kernel = len(kernel_super)
+        numPix = int(round(n_kernel / degrading_factor + 0.5))
+        if numPix % 2 == 0:
+            numPix += 1
+        n_high = numPix * degrading_factor
+
+        kernel_super_ = np.zeros((n_high, n_high))
+        i_start = int((n_high-n_kernel)/2)
+        kernel_super_[i_start:i_start+n_kernel, i_start:i_start+n_kernel] = kernel_super
+        kernel_low_res = util.averaging(kernel_super_, numGrid=n_high, numPix=numPix) * degrading_factor**2
+    return kernel_low_res
 
 def cutout_source(x_pos, y_pos, image, kernelsize, shift=True):
     """
@@ -375,8 +413,9 @@ def estimate_amp(data, x_pos, y_pos, psf_kernel):
     #data_center = int((numPix-1.)/2)
     x_int = int(round(x_pos-0.49999))#+data_center
     y_int = int(round(y_pos-0.49999))#+data_center
+    # TODO: make amplitude estimate not sucecible to rounding effects on which pixels to chose to estimate the amplitude
     if x_int > 2 and x_int < numPix_x-2 and y_int > 2 and y_int < numPix_y-2:
-        mean_image = max(np.sum(data[y_int-2:y_int+3, x_int-2:x_int+3]), 0)
+        mean_image = max(np.sum(data[y_int - 2:y_int+3, x_int-2:x_int+3]), 0)
         num = len(psf_kernel)
         center = int((num-0.5)/2)
         mean_kernel = np.sum(psf_kernel[center-2:center+3, center-2:center+3])

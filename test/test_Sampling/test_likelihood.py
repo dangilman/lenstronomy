@@ -37,11 +37,9 @@ class TestLikelihoodModule(object):
         # PSF specification
         kwargs_band = sim_util.data_configure_simple(numPix, deltaPix, exp_time, sigma_bkg)
         data_class = ImageData(**kwargs_band)
-        kwargs_psf = sim_util.psf_configure_simple(psf_type='GAUSSIAN', fwhm=fwhm, kernelsize=11, deltaPix=deltaPix,
-                                              truncate=3,
-                                              kernel=None)
-        psf_class = PSF(kwargs_psf)
-
+        kwargs_psf = {'psf_type': 'GAUSSIAN', 'fwhm': fwhm, 'pixel_size': deltaPix}
+        psf_class = PSF(**kwargs_psf)
+        print(np.shape(psf_class.kernel_point_source), 'test kernel shape -')
         kwargs_spemd = {'theta_E': 1., 'gamma': 1.95, 'center_x': 0, 'center_y': 0, 'e1': 0.1, 'e2': 0.1}
 
         self.kwargs_lens = [kwargs_spemd]
@@ -55,13 +53,13 @@ class TestLikelihoodModule(object):
         self.kwargs_ps = [{'ra_source': 0.55, 'dec_source': 0.02,
                            'source_amp': 1.}]  # quasar point source position in the source plane and intrinsic brightness
         self.kwargs_cosmo = {'D_dt': 1000}
-        kwargs_numerics = {'subgrid_res': 1, 'psf_subgrid': False}
-        lens_model_class, source_model_class, lens_light_model_class, point_source_class = class_creator.create_class_instances(**kwargs_model)
+        kwargs_numerics = {'supersampling_factor': 1, 'supersampling_convolution': False, 'compute_mode': 'gaussian'}
+        lens_model_class, source_model_class, lens_light_model_class, point_source_class, extinction_class = class_creator.create_class_instances(**kwargs_model)
         imageModel = ImageModel(data_class, psf_class, lens_model_class, source_model_class,
-                                lens_light_model_class,
-                                point_source_class, kwargs_numerics=kwargs_numerics)
+                                lens_light_model_class, point_source_class, extinction_class, kwargs_numerics=kwargs_numerics)
         image_sim = sim_util.simulate_simple(imageModel, self.kwargs_lens, self.kwargs_source,
                                          self.kwargs_lens_light, self.kwargs_ps)
+        ra_pos, dec_pos = imageModel.PointSource.image_position(kwargs_ps=self.kwargs_ps, kwargs_lens=self.kwargs_lens)
 
         data_class.update_data(image_sim)
         kwargs_band['image_data'] = image_sim
@@ -70,30 +68,40 @@ class TestLikelihoodModule(object):
 
         self.kwargs_model = kwargs_model
         self.kwargs_numerics = {
-            'subgrid_res': 1,
-            'psf_subgrid': False}
+            'supersampling_factor': 1,
+            'supersampling_convolution': False}
 
         kwargs_constraints = {
                                    'num_point_source_list': [4],
                                    'solver_type': 'NONE',  # 'PROFILE', 'PROFILE_SHEAR', 'ELLIPSE', 'CENTER'
-                                   'cosmo_type': 'D_dt'
+                                   'Ddt_sampling': True
                                    }
+
+        def condition_definition(kwargs_lens, kwargs_source, kwargs_lens_light, kwargs_ps=None, kwargs_special=None, kwargs_extinction=None):
+            logL = 0
+            if kwargs_lens_light[0]['R_sersic'] > kwargs_source[0]['R_sersic']:
+                logL -= 10**15
+            return logL
 
         kwargs_likelihood = {'force_no_add_image': True,
                              'source_marg': True,
-                             'point_source_likelihood': True,
+                             'astrometric_likelihood': True,
                              'position_uncertainty': 0.004,
                              'check_solver': True,
                              'solver_tolerance': 0.001,
                              'check_positive_flux': True,
                              'flux_ratio_likelihood': True,
-                             'prior_lens': [[0, 'theta_E', 1, 0.1]]
+                             'prior_lens': [[0, 'theta_E', 1, 0.1]],
+                             'condition_definition': condition_definition,
+                             'image_position_likelihood': True
                              }
-        self.kwargs_data = {'multi_band_list': [kwargs_band, kwargs_psf, kwargs_numerics], 'image_type': 'single-band',
+        self.kwargs_data = {'multi_band_list': [[kwargs_band, kwargs_psf, kwargs_numerics]], 'multi_band_type': 'single-band',
                             'time_delays_measured': np.ones(4),
                             'time_delays_uncertainties': np.ones(4),
                             'flux_ratios': np.ones(4),
-                            'flux_ratio_errors': np.ones(4)
+                            'flux_ratio_errors': np.ones(4),
+                            'ra_image_list': ra_pos,
+                            'dec_image_list': dec_pos
                             }
         self.param_class = Param(self.kwargs_model, **kwargs_constraints)
         self.imageModel = ImageModel(data_class, psf_class, lens_model_class, source_model_class,
@@ -103,9 +111,9 @@ class TestLikelihoodModule(object):
 
     def test_logL(self):
         args = self.param_class.kwargs2args(kwargs_lens=self.kwargs_lens, kwargs_source=self.kwargs_source,
-                                            kwargs_lens_light=self.kwargs_lens_light, kwargs_ps=self.kwargs_ps, kwargs_cosmo=self.kwargs_cosmo)
+                                            kwargs_lens_light=self.kwargs_lens_light, kwargs_ps=self.kwargs_ps, kwargs_special=self.kwargs_cosmo)
 
-        logL, _ = self.Likelihood.logL(args)
+        logL = self.Likelihood.logL(args, verbose=True)
         num_data_evaluate = self.Likelihood.num_data
         npt.assert_almost_equal(logL/num_data_evaluate, -1/2., decimal=1)
 
@@ -114,25 +122,25 @@ class TestLikelihoodModule(object):
                              }
         likelihood = LikelihoodModule(kwargs_data_joint=self.kwargs_data, kwargs_model=self.kwargs_model, param_class=self.param_class, **kwargs_likelihood)
         args = self.param_class.kwargs2args(kwargs_lens=self.kwargs_lens, kwargs_source=self.kwargs_source,
-                                            kwargs_lens_light=self.kwargs_lens_light, kwargs_ps=self.kwargs_ps, kwargs_cosmo=self.kwargs_cosmo)
+                                            kwargs_lens_light=self.kwargs_lens_light, kwargs_ps=self.kwargs_ps, kwargs_special=self.kwargs_cosmo)
 
-        logL, _ = likelihood.logL(args)
+        logL = likelihood.logL(args, verbose=True)
         npt.assert_almost_equal(logL, -3080.29, decimal=-1)
 
-    def test_solver(self):
+    #def test_solver(self):
         # make simulation with point source positions in image plane
-        x_pos, y_pos = self.imageModel.PointSource.image_position(self.kwargs_ps, self.kwargs_lens)
-        kwargs_ps = [{'ra_image': x_pos[0], 'dec_image': y_pos[0]}]
+    #    x_pos, y_pos = self.imageModel.PointSource.image_position(self.kwargs_ps, self.kwargs_lens)
+    #    kwargs_ps = [{'ra_image': x_pos[0], 'dec_image': y_pos[0]}]
 
-        kwargs_likelihood = {
-                             'source_marg': True,
-                             'point_source_likelihood': True,
-                             'position_uncertainty': 0.004,
-                             'check_solver': True,
-                             'solver_tolerance': 0.001,
-                             'check_positive_flux': True,
-                             'solver': True
-                             }
+    #    kwargs_likelihood = {
+    #                         'source_marg': True,
+    #                         'astrometric_likelihood': True,
+    #                         'position_uncertainty': 0.004,
+    #                         'check_solver': True,
+    #                         'solver_tolerance': 0.001,
+    #                         'check_positive_flux': True,
+    #                         'solver': True
+    #                         }
 
         #imageModel = ImageModel(self.data_class, self.psf_class, self.lens_model_class, self.source_model_class,
         #                        self.lens_light_model_class,
@@ -145,10 +153,10 @@ class TestLikelihoodModule(object):
         kwargs_constraints = {}
         param_class = Param(kwargs_model, **kwargs_constraints)
 
-        kwargs_data = sim_util.data_configure_simple(numPix=10, deltaPix=0.1, exposure_time=1, sigma_bkg=0.1)
+        kwargs_data = sim_util.data_configure_simple(numPix=10, deltaPix=0.1, exposure_time=1, background_rms=0.1)
         data_class = ImageData(**kwargs_data)
         kwargs_psf = {'psf_type': 'NONE'}
-        psf_class = PSF(kwargs_psf)
+        psf_class = PSF(**kwargs_psf)
         kwargs_sersic = {'amp': -1., 'R_sersic': 0.1, 'n_sersic': 2, 'center_x': 0, 'center_y': 0}
         source_model_list = ['SERSIC']
         kwargs_source = [kwargs_sersic]
@@ -159,10 +167,10 @@ class TestLikelihoodModule(object):
         image_sim = sim_util.simulate_simple(imageModel, [], kwargs_source)
 
         kwargs_data['image_data'] = image_sim
-        kwargs_data_joint = {'multi_band_list': [kwargs_data, kwargs_psf, {}]}
+        kwargs_data_joint = {'multi_band_list': [[kwargs_data, kwargs_psf, {}]], 'multi_band_type': 'single-band'}
         likelihood = LikelihoodModule(kwargs_data_joint=kwargs_data_joint, kwargs_model=kwargs_model, param_class=param_class, **kwargs_likelihood)
 
-        logL, _ = likelihood.logL(args=param_class.kwargs2args(kwargs_source=kwargs_source))
+        logL = likelihood.logL(args=param_class.kwargs2args(kwargs_source=kwargs_source), verbose=True)
         assert logL <= -10**10
 
 

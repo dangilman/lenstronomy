@@ -1,7 +1,7 @@
 __author__ = 'sibirrer'
 
-import scipy.stats as stats
 from scipy.interpolate import interp1d
+from scipy import stats
 import numpy as np
 
 
@@ -22,7 +22,7 @@ class SkewGaussian(object):
         t = (x-e) / w
         return 2. / w * stats.norm.pdf(t) * stats.norm.cdf(a*t)
 
-    def pdf_new(self, x, mu, sigma, skw):
+    def pdf_skew(self, x, mu, sigma, skw):
         """
         function with different parameterisation
         :param x:
@@ -31,9 +31,8 @@ class SkewGaussian(object):
         :param skw: skewness
         :return:
         """
-        if skw > 1 or skw < -1:
-            print("skewness %s out of range" % skw)
-            skw = 1.
+        if skw >= 1 or skw <= -1:
+            raise ValueError("skewness %s out of range" % skw)
         e, w, a = self.map_mu_sigma_skw(mu, sigma, skw)
         pdf = self.pdf(x, e, w, a)
         return pdf
@@ -118,6 +117,29 @@ class Approx(object):
         return self.draw(n=1)
 
 
+class KDE1D(object):
+    """
+    class that allows to compute likelihoods based on a 1-d posterior sample
+    """
+    def __init__(self, values):
+        """
+
+        :param values: 1d numpy array of points representing a PDF
+        """
+        self._points = values
+        self._kernel = stats.gaussian_kde(values)
+
+    def likelihood(self, x):
+        """
+
+        :param x: position where to evaluate the density
+        :return: likelihood given the sample distribution
+        """
+
+        dens = self._kernel.evaluate(points=x)
+        return dens
+
+
 def approx_cdf_1d(x_array, pdf_array):
     """
 
@@ -142,9 +164,9 @@ def compute_lower_upper_errors(sample, num_sigma=1):
     :return: median, lower_sigma, upper_sigma
     """
     if num_sigma > 3:
-        raise ValueError("Number of sigma-constraints restircted to three. %s not valid" % num_sigma)
+        raise ValueError("Number of sigma-constraints restricted to three. %s not valid" % num_sigma)
     num = len(sample)
-    num_threshold1 = int(round((num-1)*0.833))
+    num_threshold1 = int(round((num-1)*0.841345))
     num_threshold2 = int(round((num-1)*0.977249868))
     num_threshold3 = int(round((num-1)*0.998650102))
 

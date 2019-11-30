@@ -3,7 +3,7 @@ __author__ = 'sibirrer'
 
 from lenstronomy.LightModel.Profiles.gaussian import Gaussian
 from lenstronomy.LensModel.Profiles.gaussian_kappa import GaussianKappa
-from lenstronomy.LensModel.Profiles.gaussian_kappa_ellipse import GaussianKappaEllipse
+from lenstronomy.LensModel.Profiles.gaussian_ellipse_potential import GaussianEllipsePotential
 from lenstronomy.LensModel.Profiles.multi_gaussian_kappa import MultiGaussianKappa, MultiGaussianKappaEllipse
 
 import numpy as np
@@ -40,7 +40,7 @@ class TestGaussianKappa(object):
         sigma = [1.]
         f_xx, f_yy, f_xy = self.gaussian_kappa.hessian(x, y, amp, sigma, center_x, center_y)
         kappa = 1./2 * (f_xx + f_yy)
-        kappa_true = self.gaussian.function(x, y, amp[0], sigma[0], sigma[0], center_x, center_y)
+        kappa_true = self.gaussian.function(x, y, amp[0], sigma[0], center_x, center_y)
         print(kappa_true)
         print(kappa)
         npt.assert_almost_equal(kappa[0], kappa_true[0], decimal=5)
@@ -74,7 +74,7 @@ class TestGaussianKappaEllipse(object):
     """
     def setup(self):
         self.multi = MultiGaussianKappaEllipse()
-        self.single = GaussianKappaEllipse()
+        self.single = GaussianEllipsePotential()
 
     def test_function(self):
         x, y = 1, 2

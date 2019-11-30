@@ -23,11 +23,19 @@ class TestNumerics(object):
         density2d = lensModel.density_2d(r, 0, **kwargs)
         npt.assert_almost_equal(density2d/density2d_num, 1., decimal=1)
 
+        kwargs['center_x'] = 0
+        kwargs['center_y'] = 0
         mass_2d_num = int_profile.mass_enclosed_2d(r, kwargs)
+        del kwargs['center_x']
+        del kwargs['center_y']
         mass_2d = lensModel.mass_2d(r, **kwargs)
         npt.assert_almost_equal(mass_2d/mass_2d_num, 1, decimal=1)
 
+        kwargs['center_x'] = 0
+        kwargs['center_y'] = 0
         mass_3d_num = int_profile.mass_enclosed_3d(r, kwargs)
+        del kwargs['center_x']
+        del kwargs['center_y']
         mass_3d = lensModel.mass_3d(r, **kwargs)
         npt.assert_almost_equal(mass_3d/mass_3d_num, 1, decimal=2)
 
@@ -48,7 +56,7 @@ class TestNumerics(object):
         Ra = 0.2
         Rs = 2.
         rho0 = lensModel.sigma2rho(sigma0, Ra, Rs)
-        kwargs_lens = {'sigma0': sigma0, 'Ra': Ra, 'Rs': Rs}
+        kwargs_lens = {'sigma0': sigma0, 'Ra': Ra, 'Rs': Rs, 'center_x': 0, 'center_y': 0}
         kwargs_density = {'rho0': rho0, 'Ra': Ra, 'Rs': Rs}
         r = 1.
         mass_2d = lensModel.mass_2d(r, **kwargs_density)
@@ -57,7 +65,7 @@ class TestNumerics(object):
         npt.assert_almost_equal(alpha_mass/np.pi, alpha_r, decimal=5)
 
     def test_nfw(self):
-        kwargs = {'rho0': 1.,  'Rs': 5.}
+        kwargs = {'rho0': 1.,  'Rs': 5., 'center_x': 0, 'center_y': 0}
         from lenstronomy.LensModel.Profiles.nfw import NFW as Model
         self.assert_integrals(Model, kwargs)
 
@@ -69,10 +77,10 @@ class TestNumerics(object):
 
         from lenstronomy.LensModel.Profiles.nfw import NFW as Model
         lensModel = Model()
-        theta_Rs = 1.
+        alpha_Rs = 1.
         Rs = 2.
-        rho0 = lensModel._alpha2rho0(theta_Rs, Rs)
-        kwargs_lens = {'theta_Rs': theta_Rs, 'Rs': Rs}
+        rho0 = lensModel._alpha2rho0(alpha_Rs, Rs)
+        kwargs_lens = {'alpha_Rs': alpha_Rs, 'Rs': Rs}
         kwargs_density = {'rho0': rho0, 'Rs': Rs}
         r = 1.
         mass_2d = lensModel.mass_2d(r, **kwargs_density)
@@ -98,6 +106,54 @@ class TestNumerics(object):
         rho0 = lensModel.sigma2rho(sigma0, Rs)
         kwargs_lens = {'sigma0': sigma0, 'Rs': Rs}
         kwargs_density = {'rho0': rho0, 'Rs': Rs}
+        r = .5
+        mass_2d = lensModel.mass_2d(r, **kwargs_density)
+        alpha_mass = mass_2d/r
+        alpha_r, _ = lensModel.derivatives(r, 0, **kwargs_lens)
+        npt.assert_almost_equal(alpha_mass/np.pi, alpha_r, decimal=5)
+
+    def test_sis(self):
+        from lenstronomy.LensModel.Profiles.sis import SIS as Model
+        kwargs = {'rho0': 1.}
+        self.assert_integrals(Model, kwargs)
+
+    def test_sis_density_deflection(self):
+        """
+        tests whether the unit conversion between the lensing parameter 'sigma0' and the units in the density profile are ok
+        :return:
+        """
+
+        from lenstronomy.LensModel.Profiles.sis import SIS as Model
+        lensModel = Model()
+        theta_E = 1.
+        rho0 = lensModel.theta2rho(theta_E)
+        kwargs_lens = {'theta_E': theta_E}
+        kwargs_density = {'rho0': rho0}
+        r = .5
+        mass_2d = lensModel.mass_2d(r, **kwargs_density)
+        alpha_mass = mass_2d/r
+        alpha_r, _ = lensModel.derivatives(r, 0, **kwargs_lens)
+        npt.assert_almost_equal(alpha_mass/np.pi, alpha_r, decimal=5)
+        lensModel.density_2d(1, 1, rho0=1)
+        #assert 1 == 0
+
+    def test_sie(self):
+        from lenstronomy.LensModel.Profiles.sie import SIE as Model
+        kwargs = {'rho0': 1., 'e1': 0, 'e2': 0}
+        self.assert_integrals(Model, kwargs)
+
+    def test_sie_density_deflection(self):
+        """
+        tests whether the unit conversion between the lensing parameter 'sigma0' and the units in the density profile are ok
+        :return:
+        """
+
+        from lenstronomy.LensModel.Profiles.sie import SIE as Model
+        lensModel = Model()
+        theta_E = 1.
+        rho0 = lensModel.theta2rho(theta_E)
+        kwargs_lens = {'theta_E': theta_E, 'e1': 0, 'e2': 0}
+        kwargs_density = {'rho0': rho0, 'e1': 0, 'e2': 0}
         r = .5
         mass_2d = lensModel.mass_2d(r, **kwargs_density)
         alpha_mass = mass_2d/r
@@ -157,7 +213,7 @@ class TestNumerics(object):
 
     def test_coreBurk(self):
 
-        from lenstronomy.LensModel.Profiles.coreBurkert import coreBurkert as Model
+        from lenstronomy.LensModel.Profiles.coreBurkert import CoreBurkert as Model
         kwargs = {'rho0': 1., 'Rs': 10, 'r_core': 5}
         self.assert_integrals(Model, kwargs)
 
@@ -189,6 +245,7 @@ class TestNumerics(object):
         self.assert_integrals(Model, kwargs)
 
     """
+
 
 if __name__ == '__main__':
     pytest.main("-k TestLensModel")

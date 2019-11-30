@@ -4,46 +4,49 @@ __author__ = 'sibirrer'
 # the potential therefore is its integral
 
 import numpy as np
-import scipy.interpolate as interp
 import warnings
+from lenstronomy.LensModel.Profiles.base_profile import LensProfileBase
 
 
-class TNFW(object):
+class TNFW(LensProfileBase):
     """
     this class contains functions concerning the truncated NFW profile with a truncation function (r_trunc^2)*(r^2+r_trunc^2)
 
     relation are: R_200 = c * Rs
 
     """
-    param_names = ['Rs', 'theta_Rs', 'r_trunc', 'center_x', 'center_y']
-    lower_limit_default = {'Rs': 0, 'theta_Rs': 0, 'r_trunc': 0, 'center_x': -100, 'center_y': -100}
-    upper_limit_default = {'Rs': 100, 'theta_Rs': 10, 'r_trunc': 100, 'center_x': 100, 'center_y': 100}
+    param_names = ['Rs', 'alpha_Rs', 'r_trunc', 'center_x', 'center_y']
+    lower_limit_default = {'Rs': 0, 'alpha_Rs': 0, 'r_trunc': 0, 'center_x': -100, 'center_y': -100}
+    upper_limit_default = {'Rs': 100, 'alpha_Rs': 10, 'r_trunc': 100, 'center_x': 100, 'center_y': 100}
 
     def __init__(self):
         """
 
         :param interpol: bool, if True, interpolates the functions F(), g() and h()
         """
-        pass
+        self._s = 0.001
+        super(LensProfileBase, self).__init__()
 
-    def function(self, x, y, Rs, theta_Rs, r_trunc, center_x=0, center_y=0):
+    def function(self, x, y, Rs, alpha_Rs, r_trunc, center_x=0, center_y=0):
         """
 
         :param x: angular position
         :param y: angular position
         :param Rs: angular turn over point
-        :param theta_Rs: deflection at Rs
+        :param alpha_Rs: deflection at Rs
         :param center_x: center of halo
         :param center_y: center of halo
         :return:
         """
-        rho0_input = self._alpha2rho0(theta_Rs=theta_Rs, Rs=Rs)
-        if Rs < 0.0001:
-            Rs = 0.0001
+        rho0_input = self._alpha2rho0(alpha_Rs=alpha_Rs, Rs=Rs)
+        #if Rs < 0.0001:
+        #    Rs = 0.0001
         x_ = x - center_x
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
+        R = np.maximum(R, self._s * Rs)
         f_ = self.nfwPot(R, Rs, rho0_input, r_trunc)
+        Warning('the potential of a truncated NFW profile is not implemented and may lead to crucial inaccuracies!')
         #TODO: truncated NFW potential not in place yet!
         return f_
 
@@ -54,7 +57,7 @@ class TNFW(object):
         :param tau: t/Rs
         :return:
         """
-
+        x = np.maximum(x, self._s)
         return np.log(x * (tau + np.sqrt(tau ** 2 + x ** 2)) ** -1)
 
     def F(self, x):
@@ -63,46 +66,53 @@ class TNFW(object):
         :param x: r/Rs
         :return:
         """
+        x = np.maximum(x, self._s)
         if isinstance(x, np.ndarray):
-            nfwvals = np.ones_like(x)
-            inds1 = np.where(x < 1)
+            nfwvals = np.zeros_like(x)
+            inds1 = np.where((x < 1) & (x > 0))
             inds2 = np.where(x > 1)
+            inds3 = np.where(x == 0)
             nfwvals[inds1] = (1 - x[inds1] ** 2) ** -.5 * np.arctanh((1 - x[inds1] ** 2) ** .5)
             nfwvals[inds2] = (x[inds2] ** 2 - 1) ** -.5 * np.arctan((x[inds2] ** 2 - 1) ** .5)
+            #nfwvals[inds3] = 0
             return nfwvals
 
         elif isinstance(x, float) or isinstance(x, int):
             if x == 1:
                 return 1
-            if x < 1:
+            elif x == 0:
+                return 0
+            elif x < 1:
                 return (1 - x ** 2) ** -.5 * np.arctanh((1 - x ** 2) ** .5)
             else:
                 return (x ** 2 - 1) ** -.5 * np.arctan((x ** 2 - 1) ** .5)
 
-    def derivatives(self, x, y, Rs=None, theta_Rs=None, r_trunc=None, center_x=0, center_y=0):
+    def derivatives(self, x, y, Rs=None, alpha_Rs=None, r_trunc=None, center_x=0, center_y=0):
 
-        rho0_input = self._alpha2rho0(theta_Rs=theta_Rs, Rs=Rs)
-        if Rs < 0.0000001:
-            Rs = 0.0000001
+        rho0_input = self._alpha2rho0(alpha_Rs=alpha_Rs, Rs=Rs)
+        #if Rs < 0.0000001:
+        #    Rs = 0.0000001
         x_ = x - center_x
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
+        R = np.maximum(R, self._s * Rs)
         f_x, f_y = self.nfwAlpha(R, Rs, rho0_input, r_trunc, x_, y_)
         return f_x, f_y
 
-    def hessian(self, x, y, Rs, theta_Rs, r_trunc, center_x=0, center_y=0):
+    def hessian(self, x, y, Rs, alpha_Rs, r_trunc, center_x=0, center_y=0):
 
         #raise Exception('Hessian for truncated nfw profile not yet implemented.')
 
         """
         returns Hessian matrix of function d^2f/dx^2, d^f/dy^2, d^2/dxdy
         """
-        rho0_input = self._alpha2rho0(theta_Rs=theta_Rs, Rs=Rs)
-        if Rs < 0.0001:
-            Rs = 0.0001
+        rho0_input = self._alpha2rho0(alpha_Rs=alpha_Rs, Rs=Rs)
+        #if Rs < 0.0001:
+        #    Rs = 0.0001
         x_ = x - center_x
         y_ = y - center_y
         R = np.sqrt(x_ ** 2 + y_ ** 2)
+        R = np.maximum(R, self._s * Rs)
 
         kappa = self.density_2d(x_, y_, Rs, rho0_input, r_trunc)
         gamma1, gamma2 = self.nfwGamma(R, Rs, rho0_input, r_trunc, x_, y_)
@@ -127,7 +137,7 @@ class TNFW(object):
 
     def density_2d(self, x, y, Rs, rho0, r_trunc, center_x=0, center_y=0):
         """
-        projected two dimenstional NFW profile (kappa*Sigma_crit)
+        projected two dimensional NFW profile (kappa*Sigma_crit)
 
         :param R: radius of interest
         :type R: float/numpy array
@@ -158,7 +168,7 @@ class TNFW(object):
         """
 
         x = R * Rs ** -1
-
+        x = np.maximum(x, self._s)
         func = (r_trunc ** 2 * (-2 * x * (1 + r_trunc ** 2) + 4 * (1 + x) * r_trunc * np.arctan(x / r_trunc) -
                                 2 * (1 + x) * (-1 + r_trunc ** 2) * np.log(Rs) + 2 * (1 + x) * (-1 + r_trunc ** 2) * np.log(Rs * (1 + x)) +
                                 2 * (1 + x) * (-1 + r_trunc ** 2) * np.log(Rs * r_trunc) -
@@ -180,6 +190,7 @@ class TNFW(object):
         :return: Epsilon(R) projected density at radius R
         """
         x = R / Rs
+        x = np.maximum(x, self._s)
         tau = float(r_trunc) / Rs
         hx = self._h(x, tau)
         return 2 * rho0 * Rs ** 3 * hx
@@ -200,12 +211,14 @@ class TNFW(object):
         :type axis: same as R
         :return: Epsilon(R) projected density at radius R
         """
-        if isinstance(R, int) or isinstance(R, float):
-            R = max(R, 0.00001)
-        else:
-            R[R <= 0.00001] = 0.00001
+        R = np.maximum(R, self._s * Rs)
+        #if isinstance(R, int) or isinstance(R, float):
+        #    R = max(R, 0.00001)
+        #else:
+        #    R[R <= 0.00001] = 0.00001
 
         x = R / Rs
+        x = np.maximum(x, self._s)
         tau = float(r_trunc) / Rs
         gx = self._g(x, tau)
         a = 4 * rho0 * Rs * gx / x ** 2
@@ -229,12 +242,14 @@ class TNFW(object):
         :return: Epsilon(R) projected density at radius R
         """
         c = 0.000001
-        if isinstance(R, int) or isinstance(R, float):
-            R = max(R, c)
-        else:
-            R[R <= c] = c
-
+        #if isinstance(R, int) or isinstance(R, float):
+        #    R = max(R, c)
+        #else:
+        #    R[R <= c] = c
+        R = np.maximum(R, self._s * Rs)
         x = R / Rs
+        #x = np.maximum(x, self._s)
+        #R = np.maximum(R, self._s * Rs)
 
         tau = float(r_trunc) * Rs ** -1
 
@@ -245,7 +260,7 @@ class TNFW(object):
 
         return a * (ax_y ** 2 - ax_x ** 2) / R ** 2, -a * 2 * (ax_x * ax_y) / R ** 2
 
-    def mass_2d(self,R,Rs,rho0,r_trunc):
+    def mass_2d(self, R, Rs, rho0, r_trunc):
 
         """
         analytic solution of the projection integral
@@ -256,6 +271,7 @@ class TNFW(object):
         """
 
         x = R / Rs
+        x = np.maximum(x, self._s)
         tau = r_trunc / Rs
         gx = self._g(x,tau)
         m_2d = 4 * rho0 * Rs * R ** 2 * gx / x ** 2 * np.pi
@@ -271,7 +287,7 @@ class TNFW(object):
         """
         t2 = tau ** 2
         #Fx = self.F(X)
-
+        X = np.maximum(X, self._s )
         _F = self.F(X)
         a = t2*(t2+1)**-2
         if isinstance(X, np.ndarray):
@@ -302,6 +318,7 @@ class TNFW(object):
         :param x: R/Rs
         :type x: float >0
         """
+        x = np.maximum(x, self._s)
         return tau ** 2 * (tau ** 2 + 1) ** -2 * (
                 (tau ** 2 + 1 + 2 * (x ** 2 - 1)) * self.F(x) + tau * np.pi + (tau ** 2 - 1) * np.log(tau) +
                 np.sqrt(tau ** 2 + x ** 2) * (-np.pi + self.L(x, tau) * (tau ** 2 - 1) * tau ** -1))
@@ -315,7 +332,7 @@ class TNFW(object):
         :param tau: t/Rs
         :type x: float >0
         """
-
+        X = np.maximum(X, self._s)
         def cos_func(y):
             if isinstance(y, float) or isinstance(y, int):
                 if y > 1:
@@ -347,7 +364,7 @@ class TNFW(object):
                 return y
 
         def tnfw_func(x,tau):
-
+            x = np.maximum(x, self._s)
             u = x**2
             t2 = tau**2
             Lx = self.L(u**.5, tau)
@@ -395,11 +412,11 @@ class TNFW(object):
 
             return values
 
-    def _alpha2rho0(self, theta_Rs, Rs):
+    def _alpha2rho0(self, alpha_Rs, Rs):
         """
         convert angle at Rs into rho0; neglects the truncation
         """
-        rho0 = theta_Rs / (4. * Rs ** 2 * (1. + np.log(1. / 2.)))
+        rho0 = alpha_Rs / (4. * Rs ** 2 * (1. + np.log(1. / 2.)))
         return rho0
 
     def _rho02alpha(self, rho0, Rs):
@@ -411,5 +428,5 @@ class TNFW(object):
         :param Rs:
         :return:
         """
-        theta_Rs = rho0 * (4 * Rs ** 2 * (1 + np.log(1. / 2.)))
-        return theta_Rs
+        alpha_Rs = rho0 * (4 * Rs ** 2 * (1 + np.log(1. / 2.)))
+        return alpha_Rs

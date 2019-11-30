@@ -1,6 +1,6 @@
 import numpy as np
 import lenstronomy.Util.util as util
-import lenstronomy.Util.mask as mask_util
+import lenstronomy.Util.mask_util as mask_util
 import lenstronomy.Util.param_util as param_util
 
 
@@ -41,12 +41,12 @@ class LensModelExtensions(object):
             from lenstronomy.LightModel.Profiles.gaussian import Gaussian
             quasar = Gaussian()
         elif shape == 'TORUS':
-            import lenstronomy.LightModel.Profiles.torus as quasar
+            import lenstronomy.LightModel.Profiles.ellipsoid as quasar
         else:
             raise ValueError("shape %s not valid for finite magnification computation!" % shape)
         x_grid, y_grid = util.make_grid(numPix=grid_number, deltapix=deltaPix, subgrid_res=1)
 
-        if polar_grid:
+        if polar_grid is True:
             a = window_size*0.5
             b = window_size*0.5*aspect_ratio
             ellipse_inds = (x_grid*a**-1) **2 + (y_grid*b**-1) **2 <= 1
@@ -57,7 +57,7 @@ class LensModelExtensions(object):
 
             center_x, center_y = self._lensModel.ray_shooting(ra, dec, kwargs_lens)
 
-            if polar_grid:
+            if polar_grid is True:
                 theta = np.arctan2(dec,ra)
                 xcoord, ycoord = util.rotate(x_grid, y_grid, theta)
             else:
@@ -65,10 +65,37 @@ class LensModelExtensions(object):
 
             betax, betay = self._lensModel.ray_shooting(xcoord + ra, ycoord + dec, kwargs_lens)
 
-            I_image = quasar.function(betax, betay, 1., source_sigma, source_sigma, center_x, center_y)
+            I_image = quasar.function(betax, betay, 1., source_sigma, center_x, center_y)
             mag_finite[i] = np.sum(I_image) * deltaPix**2
-
         return mag_finite
+
+    def zoom_source(self, x_pos, y_pos, kwargs_lens, source_sigma=0.003, window_size=0.1, grid_number=100,
+                             shape="GAUSSIAN"):
+        """
+        computes the surface brightness on an image with a zoomed window
+
+        :param x_pos: angular coordinate of center of image
+        :param y_pos: angular coordinate of center of image
+        :param kwargs_lens: lens model parameter list
+        :param source_sigma: source size (in angular units)
+        :param window_size: window size in angular units
+        :param grid_number: number of grid points per axis
+        :param shape: string, shape of source, supports 'GAUSSIAN' and 'TORUS
+        :return: 2d numpy array
+        """
+        deltaPix = float(window_size) / grid_number
+        if shape == 'GAUSSIAN':
+            from lenstronomy.LightModel.Profiles.gaussian import Gaussian
+            quasar = Gaussian()
+        elif shape == 'TORUS':
+            import lenstronomy.LightModel.Profiles.ellipsoid as quasar
+        else:
+            raise ValueError("shape %s not valid for finite magnification computation!" % shape)
+        x_grid, y_grid = util.make_grid(numPix=grid_number, deltapix=deltaPix, subgrid_res=1)
+        center_x, center_y = self._lensModel.ray_shooting(x_pos, y_pos, kwargs_lens)
+        betax, betay = self._lensModel.ray_shooting(x_grid + x_pos, y_grid + y_pos, kwargs_lens)
+        image = quasar.function(betax, betay, 1., source_sigma, center_x, center_y)
+        return util.array2image(image)
 
     def critical_curve_tiling(self, kwargs_lens, compute_window=5, start_scale=0.5, max_order=10):
         """
@@ -175,129 +202,137 @@ class LensModelExtensions(object):
         plt.cla()
         return ra_crit_list, dec_crit_list, ra_caustic_list, dec_caustic_list
 
-    def effective_einstein_radius(self, kwargs_lens_list, k=None, spacing=1000):
+    def hessian_eigenvectors(self, x, y, kwargs_lens, diff=None):
         """
-        computes the radius with mean convergence=1
+        computes magnification eigenvectors at position (x, y)
 
-        :param kwargs_lens:
-        :param spacing: number of annular bins to compute the convergence (resolution of the Einstein radius estimate)
-        :return:
+        :param x: x-position
+        :param y: y-position
+        :param kwargs_lens: lens model keyword arguments
+        :return: radial stretch, tangential stretch
         """
-        if 'center_x' in kwargs_lens_list[0]:
-            center_x = kwargs_lens_list[0]['center_x']
-            center_y = kwargs_lens_list[0]['center_y']
-        elif self._lensModel.lens_model_list[0] in ['INTERPOL', 'INTERPOL_SCALED']:
-            center_x, center_y = 0, 0
+        f_xx, f_xy, f_yx, f_yy = self._lensModel.hessian(x, y, kwargs_lens, diff=diff)
+        if isinstance(x, int) or isinstance(x, float):
+            A = np.array([[1-f_xx, f_xy], [f_yx, 1-f_yy]])
+            w, v = np.linalg.eig(A)
+            v11, v12, v21, v22 = v[0, 0], v[0, 1], v[1, 0], v[1, 1]
+            w1, w2 = w[0], w[1]
         else:
-            center_x, center_y = 0, 0
-        numPix = 200
-        deltaPix = 0.05
-        x_grid, y_grid = util.make_grid(numPix=numPix, deltapix=deltaPix)
-        x_grid += center_x
-        y_grid += center_y
-        kappa = self._lensModel.kappa(x_grid, y_grid, kwargs_lens_list, k=k)
-        if self._lensModel.lens_model_list[0] in ['INTERPOL', 'INTERPOL_SCALED']:
-            center_x = x_grid[kappa == np.max(kappa)]
-            center_y = y_grid[kappa == np.max(kappa)]
-        kappa = util.array2image(kappa)
-        r_array = np.linspace(0.0001, numPix*deltaPix/2., spacing)
-        for r in r_array:
-            mask = np.array(1 - mask_util.mask_center_2d(center_x, center_y, r, x_grid, y_grid))
-            sum_mask = np.sum(mask)
-            if sum_mask > 0:
-                kappa_mean = np.sum(kappa*mask)/np.sum(mask)
-                if kappa_mean < 1:
-                    return r
-        print(kwargs_lens_list, "Warning, no Einstein radius computed!")
-        return r_array[-1]
+            w1, w2, v11, v12, v21, v22 = np.empty(len(x), dtype=float), np.empty(len(x), dtype=float), np.empty_like(x), np.empty_like(x), np.empty_like(x), np.empty_like(x)
+            for i in range(len(x)):
+                A = np.array([[1 - f_xx[i], f_xy[i]], [f_yx[i], 1 - f_yy[i]]])
+                w, v = np.linalg.eig(A)
+                w1[i], w2[i] = w[0], w[1]
+                v11[i], v12[i], v21[i], v22[i] = v[0, 0], v[0, 1], v[1, 0], v[1, 1]
+        return w1, w2, v11, v12, v21, v22
 
-    def external_lensing_effect(self, kwargs_lens, lens_model_internal_bool=None):
+    def radial_tangential_stretch(self, x, y, kwargs_lens, diff=None):
         """
-        computes deflection, shear and convergence at (0,0) for those part of the lens model not included in the main deflector
+        computes the radial and tangential stretches at a given position
 
-        :param kwargs_lens:
-        :return:
+        :param x: x-position
+        :param y: y-position
+        :param kwargs_lens: lens model keyword arguments
+        :param diff: float or None, finite average differential scale
+        :return: radial stretch, tangential stretch
         """
-        alpha0_x, alpha0_y = 0, 0
-        kappa_ext = 0
-        shear1, shear2 = 0, 0
-        if lens_model_internal_bool is None:
-            lens_model_internal_bool = [True] * len(kwargs_lens)
-        for i, kwargs in enumerate(kwargs_lens):
-            if not lens_model_internal_bool[i] is True:
-                f_x, f_y = self._lensModel.alpha(0, 0, kwargs_lens, k=i)
-                f_xx, f_xy, f_yx, f_yy = self._lensModel.hessian(0, 0, kwargs_lens, k=i)
-                alpha0_x += f_x
-                alpha0_y += f_y
-                kappa_ext += (f_xx + f_yy)/2.
-                shear1 += 1./2 * (f_xx - f_yy)
-                shear2 += f_xy
-        return alpha0_x, alpha0_y, kappa_ext, shear1, shear2
-
-    def external_shear(self, kwargs_lens_list, foreground=False):
-        """
-
-        :param kwargs_lens_list:
-        :return:
-        """
-        for i, model in enumerate(self._lensModel.lens_model_list):
-            if foreground is True:
-                shear_model = 'FOREGROUND_SHEAR'
+        w0, w1, v11, v12, v21, v22 = self.hessian_eigenvectors(x, y, kwargs_lens, diff=diff)
+        if isinstance(x, int) or isinstance(x, float):
+            if w0 > w1:
+                radial_stretch = 1. / w0
+                tangential_stretch = 1. / w1
+                v_rad1, v_rad2 = v11, v12
+                v_tang1, v_tang2 = v21, v22
             else:
-                shear_model = 'SHEAR'
-            if model == shear_model:
-                e1 = kwargs_lens_list[i]['e1']
-                e2 = kwargs_lens_list[i]['e2']
-                phi, gamma = param_util.ellipticity2phi_gamma(e1, e2)
-                return phi, gamma
-        return 0, 0
-
-    def lens_center(self, kwargs_lens, k=None, bool_list=None, numPix=200, deltaPix=0.01, center_x_init=0, center_y_init=0):
-        """
-        computes the convergence weighted center of a lens model
-
-        :param kwargs_lens: lens model keyword argument list
-        :param bool_list: bool list (optional) to include certain models or not
-        :return: center_x, center_y
-        """
-        x_grid, y_grid = util.make_grid(numPix=numPix, deltapix=deltaPix)
-        x_grid += center_x_init
-        y_grid += center_y_init
-
-        if bool_list is None:
-            kappa = self._lensModel.kappa(x_grid, y_grid, kwargs_lens, k=k)
+                radial_stretch = 1. / w1
+                tangential_stretch = 1. / w0
+                v_rad1, v_rad2 = v21, v22
+                v_tang1, v_tang2 = v11, v12
         else:
-            kappa = np.zeros_like(x_grid)
-            for k in range(len(kwargs_lens)):
-                if bool_list[k] is True:
-                    kappa += self._lensModel.kappa(x_grid, y_grid, kwargs_lens, k=k)
-        center_x = x_grid[kappa == np.max(kappa)]
-        center_y = y_grid[kappa == np.max(kappa)]
-        return center_x, center_y
+            radial_stretch, tangential_stretch, v_rad1, v_rad2, v_tang1, v_tang2 = np.empty(len(x), dtype=float), np.empty(len(x), dtype=float), np.empty_like(x), np.empty_like(x), np.empty_like(x), np.empty_like(x)
+            for i in range(len(x)):
+                if w0[i] > w1[i]:
+                    radial_stretch[i] = 1. / w0[i]
+                    tangential_stretch[i] = 1. / w1[i]
+                    v_rad1[i], v_rad2[i] = v11[i], v12[i]
+                    v_tang1[i], v_tang2[i] = v21[i], v22[i]
+                else:
+                    radial_stretch[i] = 1. / w1[i]
+                    tangential_stretch[i] = 1. / w0[i]
+                    v_rad1[i], v_rad2[i] = v21[i], v22[i]
+                    v_tang1[i], v_tang2[i] = v11[i], v12[i]
 
-    def profile_slope(self, kwargs_lens_list, lens_model_internal_bool=None, num_points=10):
+        return radial_stretch, tangential_stretch, v_rad1, v_rad2, v_tang1, v_tang2
+
+    def radial_tangential_differentials(self, x, y, kwargs_lens, center_x=0, center_y=0, smoothing_3rd=0.001, smoothing_2nd=None):
         """
-        computes the logarithmic power-law slope of a profile
+        computes the differentials in stretches and directions
 
-        :param kwargs_lens_list: lens model keyword argument list
-        :param lens_model_internal_bool: bool list, indicate which part of the model to consider
-        :param num_points: number of estimates around the Einstein radius
+        :param x: x-position
+        :param y: y-position
+        :param kwargs_lens: lens model keyword arguments
+        :param center_x: x-coord of center towards which the rotation direction is defined
+        :param center_y: x-coord of center towards which the rotation direction is defined
+        :param smoothing_3rd: finite differential length of third order in units of angle
+        :param smoothing_2nd: float or None, finite average differential scale of Hessian
         :return:
         """
-        theta_E = self.effective_einstein_radius(kwargs_lens_list)
-        x0 = kwargs_lens_list[0]['center_x']
-        y0 = kwargs_lens_list[0]['center_y']
-        x, y = util.points_on_circle(theta_E, num_points)
-        dr = 0.01
-        x_dr, y_dr = util.points_on_circle(theta_E + dr, num_points)
-        if lens_model_internal_bool is None:
-            lens_model_internal_bool = [True]*len(kwargs_lens_list)
+        radial_stretch, tangential_stretch, v_rad1, v_rad2, v_tang1, v_tang2 = self.radial_tangential_stretch(x, y, kwargs_lens, diff=smoothing_2nd)
+        x0 = x - center_x
+        y0 = y - center_y
+        dx_tang = x + smoothing_3rd * v_tang1
+        dy_tang = y + smoothing_3rd * v_tang2
+        rad_dt, tang_dt, v_rad1_dt, v_rad2_dt, v_tang1_dt, v_tang2_dt = self.radial_tangential_stretch(dx_tang, dy_tang, kwargs_lens, diff=smoothing_2nd)
 
-        alpha_E_x_i, alpha_E_y_i = self._lensModel.alpha(x0 + x, y0 + y, kwargs_lens_list, k=lens_model_internal_bool)
-        alpha_E_r = np.sqrt(alpha_E_x_i**2 + alpha_E_y_i**2)
-        alpha_E_dr_x_i, alpha_E_dr_y_i = self._lensModel.alpha(x0 + x_dr, y0 + y_dr, kwargs_lens_list,
-                                                               k=lens_model_internal_bool)
-        alpha_E_dr = np.sqrt(alpha_E_dr_x_i ** 2 + alpha_E_dr_y_i ** 2)
-        slope = np.mean(np.log(alpha_E_dr / alpha_E_r) / np.log((theta_E + dr) / theta_E))
-        gamma = -slope + 2
-        return gamma
+        d_tang_d_tang = (tang_dt - tangential_stretch) / smoothing_3rd * np.sign(v_tang1 * y0 - v_tang2 * x0)
+        cos_delta = v_tang1 * v_tang1_dt + v_tang2 * v_tang2_dt # / (np.sqrt(v_tang1**2 + v_tang2**2) * np.sqrt(v_tang1_dt**2 + v_tang2_dt**2))
+        norm = np.sqrt(v_tang1**2 + v_tang2**2) * np.sqrt(v_tang1_dt**2 + v_tang2_dt**2)
+        cos_delta /= norm
+        arc_cos = np.arccos(np.abs(np.minimum(cos_delta, 1)))
+        d_angle_d_tang = arc_cos / smoothing_3rd
+
+        dx_rad = x + smoothing_3rd * v_rad1
+        dy_rad = y + smoothing_3rd * v_rad2
+        rad_dr, tang_dr, v_rad1_dr, v_rad2_dr, v_tang1_dr, v_tang2_dr = self.radial_tangential_stretch(dx_rad, dy_rad, kwargs_lens, diff=smoothing_2nd)
+        cos_delta = v_rad1 * v_rad1_dr + v_rad2 * v_rad2_dr / (np.sqrt(v_rad1**2 + v_rad2**2) * np.sqrt(v_rad1_dr**2 + v_rad2_dr**2))
+
+        cos_delta = np.minimum(cos_delta, 1)
+        d_angle_d_rad = np.arccos(cos_delta) / smoothing_3rd
+        d_rad_d_rad = (rad_dr - radial_stretch) / smoothing_3rd * np.sign(v_rad1 * x0 + v_rad2 * y0)
+
+        d_tang_d_rad = (tang_dr - tangential_stretch) / smoothing_3rd * np.sign(v_rad1 * x0 + v_rad2 * y0)
+
+        cos_angle = (v_tang1 * x0 + v_tang2 * y0) / np.sqrt((x0**2 + y0**2) * (v_tang1**2 + v_tang2**2)) * np.sign(v_tang1 * y0 - v_tang2 * x0)
+        angle = np.arccos(cos_angle) - np.pi / 2
+        return radial_stretch, tangential_stretch, d_tang_d_tang, d_tang_d_rad, d_angle_d_tang, d_rad_d_rad, d_angle_d_rad, angle
+
+    def curved_arc_estimate(self, x, y, kwargs_lens, smoothing=None, smoothing_3rd=0.001):
+        """
+        performs the estimation of the curved arc description at a particular position of an arbitrary lens profile
+
+        :param x: float, x-position where the estimate is provided
+        :param y: float, y-position where the estimate is provided
+        :param kwargs_lens: lens model keyword arguments
+        :return: keyword argument list corresponding to a CURVED_ARC profile at (x, y) given the initial lens model
+        """
+        radial_stretch, tangential_stretch, v_rad1, v_rad2, v_tang1, v_tang2 = self.radial_tangential_stretch(x, y, kwargs_lens, diff=smoothing)
+        dx_tang = x + smoothing_3rd * v_tang1
+        dy_tang = y + smoothing_3rd * v_tang2
+        rad_dt, tang_dt, v_rad1_dt, v_rad2_dt, v_tang1_dt, v_tang2_dt = self.radial_tangential_stretch(dx_tang, dy_tang,
+                                                                                                       kwargs_lens,
+                                                                                                       diff=smoothing)
+        d_tang1 = v_tang1_dt - v_tang1
+        d_tang2 = v_tang2_dt - v_tang2
+        delta = np.sqrt(d_tang1**2 + d_tang2**2)
+        if delta > 1:
+            d_tang1 = v_tang1_dt + v_tang1
+            d_tang2 = v_tang2_dt + v_tang2
+            delta = np.sqrt(d_tang1 ** 2 + d_tang2 ** 2)
+        curvature = delta / smoothing_3rd
+        direction = np.arctan2(v_rad2 * np.sign(v_rad1 * x + v_rad2 * y), v_rad1 * np.sign(v_rad1 * x + v_rad2 * y))
+        kwargs_arc = {'radial_stretch': radial_stretch,
+                      'tangential_stretch': tangential_stretch,
+                      'curvature': curvature,
+                      'direction': direction,
+                      'center_x': x, 'center_y': y}
+        return kwargs_arc

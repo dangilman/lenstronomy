@@ -1,71 +1,35 @@
 import lenstronomy.Util.util as util
-import lenstronomy.Util.kernel_util as kernel_util
 import lenstronomy.Util.image_util as image_util
-from lenstronomy.LensModel.Profiles.gaussian_potential import Gaussian
 
 import numpy as np
-import copy
 
 
-def data_configure_simple(numPix, deltaPix, exposure_time=1, sigma_bkg=1, inverse=False):
+def data_configure_simple(numPix, deltaPix, exposure_time=None, background_rms=None, center_ra=0, center_dec=0,
+                          inverse=False):
     """
     configures the data keyword arguments with a coordinate grid centered at zero.
 
     :param numPix: number of pixel (numPix x numPix)
     :param deltaPix: pixel size (in angular units)
     :param exposure_time: exposure time
-    :param sigma_bkg: background noise (Gaussian sigma)
+    :param background_rms: background noise (Gaussian sigma)
+    :param center_ra: RA at the center of the image
+    :param center_dec: DEC at the center of the image
     :param inverse: if True, coordinate system is ra to the left, if False, to the right
     :return: keyword arguments that can be used to construct a Data() class instance of lenstronomy
     """
-    mean = 0.  # background mean flux (default zero)
     # 1d list of coordinates (x,y) of a numPix x numPix square grid, centered to zero
-    x_grid, y_grid, ra_at_xy_0, dec_at_xy_0, x_at_radec_0, y_at_radec_0, Mpix2coord, Mcoord2pix = util.make_grid_with_coordtransform(numPix=numPix, deltapix=deltaPix, subgrid_res=1, inverse=inverse)
+    x_grid, y_grid, ra_at_xy_0, dec_at_xy_0, x_at_radec_0, y_at_radec_0, Mpix2coord, Mcoord2pix = util.make_grid_with_coordtransform(numPix=numPix, deltapix=deltaPix, center_ra=center_ra, center_dec=center_dec, subgrid_res=1, inverse=inverse)
     # mask (1= model this pixel, 0= leave blanck)
-    exposure_map = np.ones((numPix, numPix)) * exposure_time  # individual exposure time/weight per pixel
+    # exposure_map = np.ones((numPix, numPix)) * exposure_time  # individual exposure time/weight per pixel
 
     kwargs_data = {
-        'background_rms': sigma_bkg,
-        'exposure_time': exposure_map
+        'background_rms': background_rms,
+        'exposure_time': exposure_time
         , 'ra_at_xy_0': ra_at_xy_0, 'dec_at_xy_0': dec_at_xy_0, 'transform_pix2angle': Mpix2coord
         , 'image_data': np.zeros((numPix, numPix))
         }
     return kwargs_data
-
-
-def psf_configure_simple(psf_type="GAUSSIAN", fwhm=1, kernelsize=11, deltaPix=1, truncate=6, kernel=None):
-    """
-    this routine generates keyword arguments to initialize a PSF() class in lenstronomy. Have a look at the PSF class
-    documentation to see the full possibilities.
-
-    :param psf_type: string, type of PSF model
-    :param fwhm: Full width at half maximum of PSF (if GAUSSIAN psf)
-    :param kernelsize: size in pixel of kernel (use odd numbers), only applicable for PIXEL kernels
-    :param deltaPix: pixel size in angular units (only needed for GAUSSIAN kernel
-    :param truncate: how many sigmas out is the truncation happening
-    :param kernel: 2d numpy arra centered PSF (odd number per axis)
-    :return: keyword arguments
-    """
-
-    if psf_type == 'GAUSSIAN':
-        sigma = util.fwhm2sigma(fwhm)
-        sigma_axis = sigma
-        gaussian = Gaussian()
-        x_grid, y_grid = util.make_grid(kernelsize, deltaPix)
-        kernel_large = gaussian.function(x_grid, y_grid, amp=1., sigma_x=sigma_axis, sigma_y=sigma_axis, center_x=0, center_y=0)
-        kernel_large /= np.sum(kernel_large)
-        kernel_large = util.array2image(kernel_large)
-        kernel_pixel = kernel_util.pixel_kernel(kernel_large)
-        kwargs_psf = {'psf_type': psf_type, 'fwhm': fwhm, 'truncation': truncate*fwhm, 'kernel_point_source': kernel_large, 'kernel_pixel': kernel_pixel, 'pixel_size': deltaPix}
-    elif psf_type == 'PIXEL':
-        kernel_large = copy.deepcopy(kernel)
-        kernel_large = kernel_util.cut_psf(kernel_large, psf_size=kernelsize)
-        kwargs_psf = {'psf_type': "PIXEL", 'kernel_point_source': kernel_large}
-    elif psf_type == 'NONE':
-        kwargs_psf = {'psf_type': 'NONE'}
-    else:
-        raise ValueError("psf type %s not supported!" % psf_type)
-    return kwargs_psf
 
 
 def simulate_simple(image_model_class, kwargs_lens=None, kwargs_source=None, kwargs_lens_light=None, kwargs_ps=None,

@@ -47,7 +47,7 @@ class TestPointSourceVariability(object):
 
         kwargs_lens = [
             {'theta_E': 1, 'gamma': 2, 'e1': 0.1, 'e2': -0.1, 'center_x': 0, 'center_y': 0},  # SIE model
-            {'e1': 0.03, 'e2': 0.01}  # SHEAR model
+            {'gamma1': 0.03, 'gamma2': 0.01}  # SHEAR model
         ]
 
         from lenstronomy.SimulationAPI.point_source_variability import PointSourceVariability
@@ -58,6 +58,9 @@ class TestPointSourceVariability(object):
         time = 0
         image_g = ps_var.image_time(time=time)
         npt.assert_almost_equal(np.sum(image_g), 8, decimal=1)
+
+        t_days = ps_var.delays
+        assert len(t_days) == 4
 
 
 if __name__ == '__main__':

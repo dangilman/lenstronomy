@@ -31,13 +31,10 @@ class TestFittingSequence(object):
 
         kwargs_data = sim_util.data_configure_simple(numPix, deltaPix, exp_time, sigma_bkg)
         data_class = ImageData(**kwargs_data)
-        kwargs_psf = sim_util.psf_configure_simple(psf_type='GAUSSIAN', fwhm=fwhm, kernelsize=11, deltaPix=deltaPix,
-                                              truncate=3,
-                                              kernel=None)
-        kwargs_psf = sim_util.psf_configure_simple(psf_type='PIXEL', fwhm=fwhm, kernelsize=11, deltaPix=deltaPix,
-                                              truncate=6,
-                                              kernel=kwargs_psf['kernel_point_source'])
-        psf_class = PSF(kwargs_psf)
+        kwargs_psf_gaussian = {'psf_type': 'GAUSSIAN', 'fwhm': fwhm, 'pixel_size': deltaPix}
+        psf = PSF(**kwargs_psf_gaussian)
+        kwargs_psf = {'psf_type': 'PIXEL', 'kernel_point_source': psf.kernel_point_source}
+        psf_class = PSF(**kwargs_psf)
         kwargs_spemd = {'theta_E': 1., 'gamma': 1.8, 'center_x': 0, 'center_y': 0, 'e1': 0.1, 'e2': 0.1}
 
         lens_model_list = ['SPEP']
@@ -55,7 +52,7 @@ class TestFittingSequence(object):
         self.kwargs_source = [kwargs_sersic_ellipse]
         source_model_class = LightModel(light_model_list=source_model_list)
 
-        kwargs_numerics = {'subgrid_res': 1, 'psf_subgrid': False}
+        kwargs_numerics = {'supersampling_factor': 1, 'supersampling_convolution': False, 'compute_mode': 'regular'}
         imageModel = ImageModel(data_class, psf_class, lens_model_class, source_model_class,
                                 lens_light_model_class, kwargs_numerics=kwargs_numerics)
         image_sim = sim_util.simulate_simple(imageModel, self.kwargs_lens, self.kwargs_source,
@@ -63,7 +60,7 @@ class TestFittingSequence(object):
 
         data_class.update_data(image_sim)
         kwargs_data['image_data'] = image_sim
-        kwargs_data_joint = {'multi_band_list': [kwargs_data, kwargs_psf, kwargs_numerics], 'image_type': 'single-band'}
+        kwargs_data_joint = {'multi_band_list': [[kwargs_data, kwargs_psf, kwargs_numerics]], 'multi_band_type': 'single-band'}
         self.data_class = data_class
         self.psf_class = psf_class
 
@@ -80,7 +77,6 @@ class TestFittingSequence(object):
 
         kwargs_likelihood = {
                                   'source_marg': True,
-                                  'point_source_likelihood': False,
                                   'position_uncertainty': 0.004,
                                   'check_solver': False,
                                   'solver_tolerance': 0.001,
@@ -105,17 +101,9 @@ class TestFittingSequence(object):
         mean_start = self.param_class.kwargs2args(kwargs_lens=self.kwargs_lens, kwargs_source=self.kwargs_source,
                                                   kwargs_lens_light=self.kwargs_lens_light)
         sigma_start = np.ones_like(mean_start) * 0.1
-        samples = self.sampler.mcmc_emcee(n_walkers, n_run, n_burn, mean_start, sigma_start, mpi=False)
+        samples, dist = self.sampler.mcmc_emcee(n_walkers, n_run, n_burn, mean_start, sigma_start, mpi=False)
         assert len(samples) == n_walkers * n_run
-
-    def test_mcmc_CH(self):
-        walkerRatio = 2
-        n_run = 2
-        n_burn = 2
-        mean_start = self.param_class.kwargs2args(kwargs_lens=self.kwargs_lens, kwargs_source=self.kwargs_source,
-                                                  kwargs_lens_light=self.kwargs_lens_light)
-        sigma_start = np.ones_like(mean_start) * 0.1
-        self.sampler.mcmc_CH(walkerRatio, n_run, n_burn, mean_start, sigma_start, threadCount=1, init_pos=None, mpi=False)
+        assert len(dist) == len(samples)
 
 
 if __name__ == '__main__':

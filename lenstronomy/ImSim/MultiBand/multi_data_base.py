@@ -17,10 +17,10 @@ class MultiDataBase(object):
         self._num_response_list = []
         for imageModel in imageModel_list:
             self._num_response_list.append(imageModel.num_data_evaluate)
-        self.LensModel = self._imageModel_list[0].LensModel
-        self.SourceModel = self._imageModel_list[0].SourceModel
-        self.LensLightModel = self._imageModel_list[0].LensLightModel
-        self.PointSource = self._imageModel_list[0].PointSource
+        #self.LensModel = self._imageModel_list[0].LensModel
+        #self.SourceModel = self._imageModel_list[0].SourceModel
+        #self.LensLightModel = self._imageModel_list[0].LensLightModel
+        #self.PointSource = self._imageModel_list[0].PointSource
 
     @property
     def num_bands(self):
@@ -78,4 +78,5 @@ class MultiDataBase(object):
         for i in range(self._num_bands):
             if self._compute_bool[i] is True:
                 residual_list.append(self._imageModel_list[i].reduced_residuals(model_list[index], error_map=error_map_list[index]))
+                index += 1
         return residual_list
