@@ -1,5 +1,5 @@
 import numpy as np
-from lenstronomy.Util.param_util import ellipticity2phi_gamma, ellipticity2phi_q
+from lenstronomy.Util.param_util import shear_cartesian2polar, ellipticity2phi_q
 from lenstronomy.Util.util import sort_image_index
 
 class Penalties(object):
@@ -29,6 +29,7 @@ class Penalties(object):
         """
 
         self.tol_source = tol_source
+
         if chi2_mode == 'source':
 
             assert isinstance(self.tol_source, float) or isinstance(self.tol_source, int)
@@ -77,12 +78,6 @@ class Penalties(object):
         params_fixed = self.param_class.argsfixed_todictionary()
         total_penalty = 0
 
-        # this function accepts the array, not the dictionary
-
-        if self.params_to_constrain is not None:
-            param_penalties = self._param_penalties(lens_args_to_vary_array)
-            total_penalty += param_penalties
-
         lens_args_to_vary = self.param_class.argstovary_todictionary(lens_args_to_vary_array)
         self.lens_args_latest = lens_args_to_vary+params_fixed
 
@@ -98,6 +93,11 @@ class Penalties(object):
         if self._compute_mags:
             mag_penalty = self._magnification_penalty(lens_args_to_vary)
             total_penalty += mag_penalty
+
+        # this function accepts the array, not the dictionary
+        if self.params_to_constrain is not None:
+            param_penalties = self._param_penalties(lens_args_to_vary_array)
+            total_penalty += param_penalties
 
         self._book_keeping(img_penalty, centroid_penalty, mag_penalty, param_penalties)
 
@@ -200,11 +200,19 @@ class Penalties(object):
             if pname == 'shear' and hasattr(self.param_class.routine, '_fixshear'):
                 continue
 
-            if pname == 'shear':
+            if pname == 'source':
+
+                tol = self.params_to_constrain[pname][2]
+                srcx, srcy = self.params_to_constrain[pname][0], self.params_to_constrain[pname][1]
+                dx_source, dy_source = np.sum((self.betax - srcx) ** 2 / tol ** 2), \
+                                           np.sum((self.betay - srcy) ** 2 / tol ** 2)
+                penalty += 0.5 * (dx_source + dy_source)
+
+            elif pname == 'shear':
 
                 index1 = self.param_class.routine.params_to_vary.index('shear_e1')
                 index2 = self.param_class.routine.params_to_vary.index('shear_e2')
-                _, shear = ellipticity2phi_gamma(lens_args_tovary[index1],lens_args_tovary[index2])
+                _, shear = shear_cartesian2polar(lens_args_tovary[index1],lens_args_tovary[index2])
 
                 penalty += 0.5 * ((shear - self.params_to_constrain['shear'][0])*self.params_to_constrain['shear'][1]**-1)**2
 
@@ -212,7 +220,7 @@ class Penalties(object):
 
                 index1 = self.param_class.routine.params_to_vary.index('shear_e1')
                 index2 = self.param_class.routine.params_to_vary.index('shear_e2')
-                phi, _ = ellipticity2phi_gamma(lens_args_tovary[index1], lens_args_tovary[index2])
+                phi, _ = shear_cartesian2polar(lens_args_tovary[index1], lens_args_tovary[index2])
                 shear_pa = phi * (180./np.pi)
                 penalty += 0.5 * (
                             (shear_pa - self.params_to_constrain['shear_pa'][0]) * self.params_to_constrain['shear_pa'][1] ** -1) ** 2
@@ -227,7 +235,6 @@ class Penalties(object):
                 penalty += 0.5 * (
                         (ellip - self.params_to_constrain['ellip'][0]) * self.params_to_constrain['ellip'][
                     1] ** -1) ** 2
-
 
             else:
 
