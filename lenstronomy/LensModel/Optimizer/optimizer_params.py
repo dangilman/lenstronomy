@@ -4,11 +4,11 @@ import numpy as np
 
 class Params(object):
 
-    known_routines = ['fixed_powerlaw_shear', 'variable_powerlaw_shear', 'fixedshearpowerlaw']
+    known_routines = ['fixed_powerlaw_shear', 'variable_powerlaw_shear', 'fixedshearpowerlaw', 'custom']
 
     def __init__(self, zlist=None, lens_list=None, arg_list=None,
                  optimizer_routine=str, xpos = None, ypos = None,
-                 constrain_params = None):
+                 constrain_params = None, to_vary_indexes=None):
 
         if optimizer_routine not in self.known_routines:
             raise Exception('routine '+str(optimizer_routine)+' not recognized.')
@@ -21,6 +21,8 @@ class Params(object):
             routine = VariablePowerLaw_Shear(lens_list, arg_list, xpos, ypos,constrain_params)
         elif optimizer_routine == 'fixedshearpowerlaw':
             routine = FixedShearPowerLaw(lens_list, arg_list, xpos, ypos, constrain_params)
+        elif optimizer_routine == 'custom':
+            routine = Custom(lens_list, arg_list, xpos, ypos, constrain_params, to_vary_indexes)
 
         self._zlist = zlist
         self._lens_list = lens_list

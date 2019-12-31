@@ -3,6 +3,51 @@ from lenstronomy.Util.param_util import shear_polar2cartesian,shear_cartesian2po
     ellipticity2phi_q
 from lenstronomy.Util.util import approx_theta_E
 
+class Custom(object):
+
+    def __init__(self, lens_model_list, kwargs_lens, xpos, ypos, constrain_params, lens_models_to_vary, kwargs_to_vary):
+
+        self._Ntovary = len(lens_models_to_vary)
+        self._k_start = lens_models_to_vary[-1]
+        self._kwargs_lens = kwargs_lens
+
+        self._theta_E_start = approx_theta_E(xpos, ypos)
+
+        self.param_names = []
+        self.fixed_names = []
+        self.params_to_vary = []
+
+        _kwargs_to_vary = []
+
+        count = 0
+        for i in range(0, len(lens_model_list)):
+            if i in lens_models_to_vary:
+                _kwargs_to_vary.append(kwargs_to_vary[count])
+                count += 1
+            else:
+                _kwargs_to_vary.append(None)
+
+        for lens_model_index, ki in enumerate(kwargs_lens):
+
+            fixed_names_model = []
+            fixed_values_model = []
+            to_vary_model = []
+
+            for index, key in enumerate(ki):
+                self.param_names.append(key)
+
+                if lens_model_index in lens_models_to_vary and _kwargs_to_vary[lens_model_index] is not None:
+                    if index in _kwargs_to_vary[lens_model_index]:
+                        to_vary_model.append()
+                        fixed_names_model.append(key)
+                        fixed_values_model.append(ki[key])
+                    else:
+                        pass
+
+
+            self.fixed_params.append(fixed_names_model)
+
+
 class FixedShearPowerLaw(object):
 
     _fixshear = True

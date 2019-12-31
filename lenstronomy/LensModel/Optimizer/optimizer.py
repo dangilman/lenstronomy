@@ -105,7 +105,7 @@ class Optimizer(object):
 
         # initialize lens model class
         self._lensModel = LensModel(lens_model_list=lens_model_list, lens_redshift_list=redshift_list,
-                                    z_source=z_source,
+                                    z_source=z_source, z_lens=z_main,
                                     cosmo=astropy_instance, multi_plane=multiplane,
                                     numerical_alpha_class = numerical_alpha_class,
                                     observed_convention_index=observed_convention_index)
