@@ -6,7 +6,8 @@ class Penalties(object):
 
     def __init__(self, tol_source, tol_mag, tol_centroid, lensing, centroid_0, magnification_target=None,
                  params_to_constrain=None, param_class=None, pso_convergence_mean = None, pso_compute_magnification=None,
-                 compute_mags=False, verbose=False, chi2_mode = 'source', tol_image=None, solver = None):
+                 compute_mags=False, verbose=False, chi2_mode = 'source', tol_image=None, tol_time_delays=None,
+                 solver = None):
         """
         This class calls the mutli/single plane lensing classes to do all the high level lensing computations in the
         optimization. It also logs things like the source position penalties, magnifiction penalities, centroid penalities,
@@ -54,6 +55,13 @@ class Penalties(object):
                 tol_mag = [tol_mag]*4
             self.tol_mag = tol_mag
 
+        if tol_time_delays is None:
+            self.tol_time_delays = None
+        else:
+            if not np.logical_or(isinstance(tol_time_delays,list),isinstance(tol_time_delays,np.ndarray)):
+                tol_time_delays = [tol_time_delays]*3
+            self.tol_time_delays = tol_time_delays
+
         self.magnification_target = magnification_target
         self.tol_centroid = tol_centroid
         self.lensing = lensing
@@ -93,6 +101,11 @@ class Penalties(object):
         if self._compute_mags:
             mag_penalty = self._magnification_penalty(lens_args_to_vary)
             total_penalty += mag_penalty
+
+        self._compute_time_delays = self._compute_time_delays_criterion()
+        if self._compute_time_delays:
+            time_delay_penalty = self._arrival_time_penalty(lens_args_to_vary)
+            total_penalty += time_delay_penalty
 
         # this function accepts the array, not the dictionary
         if self.params_to_constrain is not None:
@@ -170,6 +183,22 @@ class Penalties(object):
             return False
 
         if self._compute_mags:
+            return True
+
+        if self._counter <= self._n_particles:
+            return False
+
+        if min(self.src_penalty[-self._n_particles:]) < self._pso_compute_magnification:
+            return True
+        else:
+            return False
+
+    def _compute_time_delays_criterion(self):
+
+        if self.tol_time_delays is None:
+            return False
+
+        if self._compute_time_delays:
             return True
 
         if self._counter <= self._n_particles:
@@ -295,6 +324,25 @@ class Penalties(object):
                 return image_plane_penalty
 
     def _magnification_penalty(self,lens_args):
+
+        magnifications = self.lensing._magnification_fast(lens_args)
+
+        magnifications *= max(magnifications) ** -1
+
+        self._mags = magnifications
+
+        dM = []
+
+        for i, target in enumerate(self.magnification_target):
+            if target != 0:
+                mag_tol = self.tol_mag[i] * target
+                dM.append((magnifications[i] - target) * mag_tol ** -1)
+
+        dM = np.array(dM)
+
+        return 0.5 * np.sum(dM ** 2)
+
+    def _arrival_time_penalty(self,lens_args):
 
         magnifications = self.lensing._magnification_fast(lens_args)
 
