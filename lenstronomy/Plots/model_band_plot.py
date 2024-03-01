@@ -402,7 +402,6 @@ class ModelBandPlot(ModelBand):
             y_grid = self._y_grid
         else:
             from lenstronomy.Util.util import make_grid
-
             x_grid, y_grid = make_grid(
                 int(self._coords.num_pixel_axes[0] * super_sample_factor),
                 self._deltaPix / super_sample_factor,

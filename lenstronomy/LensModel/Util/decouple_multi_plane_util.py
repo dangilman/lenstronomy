@@ -1,6 +1,7 @@
 __author__ = "dangilman"
 
 from lenstronomy.LensModel.lens_model import LensModel
+from lenstronomy.Util.util import centered_coordinate_system, grid_from_coordinate_transform
 import numpy as np
 
 
@@ -69,7 +70,7 @@ def setup_lens_model(lens_model, kwargs_lens, index_lens_split):
     )
 
 
-def setup_grids(
+def setup_grids_old(
     grid_size, grid_resolution, coordinate_center_x=0.0, coordinate_center_y=0.0
 ):
     """Creates grids for use in the decoupled multiplane model.
@@ -92,6 +93,35 @@ def setup_grids(
     xx, yy = np.meshgrid(x, y)
     interp_points = (x, y)
     return xx.ravel(), yy.ravel(), interp_points, npix
+
+def setup_grids(
+    grid_size, grid_resolution, transform_pix2angle, coordinate_center_x=0.0, coordinate_center_y=0.0
+):
+    """Creates grids for use in the decoupled multiplane model.
+
+    :param grid_size: The size (diameter of inscribed circle) of the grid
+    :param grid_resolution: pixel scale (units arcsec / pixel)
+    :param coordinate_center_x: center of the coordinate grid in arcsec
+    :param coordinate_center_y: center of the coordinate grid in arcsec
+    :return: 1d arrays of coordinates, tuple of 1d arrays of points defining the grid,
+        number of pixels per axis
+    """
+    npix = int(grid_size / grid_resolution)
+    if npix % 2 == 0:
+        # we make sure this is odd so that grids include the center point
+        npix += 1
+    print(npix)
+    kwargs_centered = centered_coordinate_system(npix, transform_pix2angle)
+    print(kwargs_centered)
+    ra_grid, dec_grid = grid_from_coordinate_transform(npix,
+                                                       npix,
+                                                       transform_pix2angle,
+                                                       kwargs_centered['ra_at_xy_0'],
+                                                       kwargs_centered['ra_at_xy_0'])
+    ra_grid += coordinate_center_x
+    dec_grid += coordinate_center_y
+    interp_points = (np.unique(ra_grid), np.unique(dec_grid))
+    return ra_grid.ravel(), dec_grid.ravel(), interp_points, npix
 
 
 def coordinates_and_deflections(
@@ -349,6 +379,7 @@ def setup_raytracing_lensmodels(
     index_lens_split,
     grid_size,
     grid_resolution,
+    transform_pix2angle
 ):
     """This function sets up the lens model used for high-resolution ray tracing with
     the decoupled multi-plane approximation.
@@ -362,6 +393,7 @@ def setup_raytracing_lensmodels(
         class)
     :param grid_size: the size of the ray-tracing grid in arcsec
     :param grid_resolution: the resolution of the ray tracing grid in arcsec/pixel
+    :param transform_pix2angle: coordinate transformation matrix from pixels into angles
     :return: a list of DecoupledMultiPlane lens models and corresponding keyword
         arguments
     """
@@ -379,7 +411,7 @@ def setup_raytracing_lensmodels(
     multiplane_lens_model_list = []
     for image_index in range(0, len(x_image)):
         grid_x, grid_y, interp_points, npix = setup_grids(
-            grid_size, grid_resolution, x_image[image_index], y_image[image_index]
+            grid_size, grid_resolution, transform_pix2angle, x_image[image_index], y_image[image_index]
         )
         (
             xD,
@@ -414,3 +446,10 @@ def setup_raytracing_lensmodels(
         kwargs_multiplane_lens_model_list.append(kwargs_multiplane_lens_model)
         multiplane_lens_model_list.append(LensModel(**kwargs_multiplane_lens_model))
     return multiplane_lens_model_list, kwargs_multiplane_lens_model_list
+
+x_grid_old, y_grid_old, interp_points, npix = setup_grids_old(1.0, 0.01, 0.5, -.5)
+transform_pix2angle = np.array([[0.05, 0.0], [0.0, 0.05]])
+x_grid, y_grid, interp_points, npix = setup_grids(1.0, 0.01, transform_pix2angle, 0.5, -0.5)
+
+print(y_grid)
+print(y_grid_old)
