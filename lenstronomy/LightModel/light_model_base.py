@@ -5,6 +5,7 @@ __author__ = "sibirrer"
 import numpy as np
 from lenstronomy.Util.util import convert_bool_list
 from lenstronomy.Conf import config_loader
+from copy import deepcopy
 
 convention_conf = config_loader.conventions_conf()
 sersic_major_axis_conf = convention_conf.get("sersic_major_axis", False)
@@ -47,7 +48,8 @@ _MODELS_SUPPORTED = [
 class LightModelBase(object):
     """Class to handle source and lens light models."""
 
-    def __init__(self, light_model_list, smoothing=0.001, sersic_major_axis=None):
+    def __init__(self, light_model_list, smoothing=0.001, sersic_major_axis=None, observed_convention_index=None,
+                 multi_plane_lens_model=None):
         """
 
         :param light_model_list: list of light models
@@ -60,6 +62,13 @@ class LightModelBase(object):
         self.func_list = []
         if sersic_major_axis is None:
             sersic_major_axis = sersic_major_axis_conf
+        if observed_convention_index is None:
+            self._position_convention = PhysicalLightPosition()
+        else:
+            assert isinstance(observed_convention_index, list)
+            self._position_convention = LensedLightPosition(
+                multi_plane_lens_model, observed_convention_index
+            )
         for profile_type in light_model_list:
             if profile_type == "GAUSSIAN":
                 from lenstronomy.LightModel.Profiles.gaussian import Gaussian
@@ -320,6 +329,7 @@ class LightModelBase(object):
         :param kwargs_list: keyword argument list as parameterised models
         :return: keyword argument list as used in the individual models
         """
+        kwargs_list = self._position_convention(kwargs_list)
         return kwargs_list
 
     def _bool_list(self, k=None):
@@ -333,3 +343,52 @@ class LightModelBase(object):
         :return: bool list
         """
         return convert_bool_list(n=self._num_func, k=k)
+
+
+class LensedLightPosition(object):
+    """
+    The position of a light model corresponds to where the component appears after lensing.
+    """
+    def __init__(self, multiplane_instance, observed_convention_index):
+        """
+
+        :param multiplane_instance: instance of the MultiPlane class that will ray trace to the position of
+        the lensed light source
+        :param observed_convention_index: list of lens model indexes to be modelled in the observed plane
+        """
+        # I don't like accessing a private class variable but it doesn't appear to be defined elsewhere
+        self._multiplane = multiplane_instance
+        self._z_stop = self._multiplane._z_source
+        self._observed_convention_index_list = observed_convention_index
+
+    def __call__(self, kwargs_light):
+        """
+
+        :param kwargs_lens:
+        :return:
+        """
+        new_kwargs = deepcopy(kwargs_light)
+        for light_component_index in self._observed_convention_index_list:
+            theta_x = kwargs_light[light_component_index]["center_x"]
+            theta_y = kwargs_light[light_component_index]["center_y"]
+            x, y, _, _ = self._multiplane.ray_shooting_partial_comoving(
+                0,
+                0,
+                theta_x,
+                theta_y,
+                0,
+                self._z_stop,
+                self._kwargs_lens,
+                T_ij_start=None,
+                T_ij_end=None,
+            )
+
+            T = self._multiplane.T_z_list[ind]
+            new_kwargs[ind]["center_x"] = x / T
+            new_kwargs[ind]["center_y"] = y / T
+        return new_kwargs
+
+class PhysicalLightPosition(object):
+    """The position of light source corresponds to the physical location in space from where the emission occurs"""
+    def __call__(self, kwargs_lens):
+        return kwargs_lens
