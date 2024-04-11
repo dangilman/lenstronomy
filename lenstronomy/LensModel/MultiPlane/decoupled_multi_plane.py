@@ -70,6 +70,10 @@ class MultiPlaneDecoupled(MultiPlane):
         self._alphay_interp_background = alpha_y_interp_background
         self._x0_interp = x0_interp
         self._y0_interp = y0_interp
+        if isinstance(z_split, list):
+            self._multiple_decoupled_planes = True
+        else:
+            self._multiple_decoupled_planes = False
         self._z_split = z_split
         super(MultiPlaneDecoupled, self).__init__(
             z_source,
@@ -86,7 +90,6 @@ class MultiPlaneDecoupled(MultiPlane):
             kwargs_interp,
             kwargs_synthesis,
         )
-
         cosmo_bkg = Background(cosmo)
         d_xy_source = cosmo_bkg.d_xy(0, z_source)
         d_xy_lens_source = cosmo_bkg.d_xy(self._z_split, z_source)
@@ -137,10 +140,8 @@ class MultiPlaneDecoupled(MultiPlane):
         # where they hit the main lens plane at redshift z = z_main
         x = self._x0_interp(coordinates)
         y = self._y0_interp(coordinates)
-
         theta_x_main = x / self._Td  # the angular coordinates of the ray positions
         theta_y_main = y / self._Td  # the angular coordinates of the ray positions
-
         # now we compute (via the interpolation functions) the deflection angles from all deflectors at z <= z_main, \
         # exlucding the main deflector
         angle_x_foreground = self._alphax_interp_foreground(coordinates)
@@ -150,10 +151,8 @@ class MultiPlaneDecoupled(MultiPlane):
         deflection_x_main, deflection_y_main = self._main_deflector.alpha(
             theta_x_main, theta_y_main, kwargs_lens
         )
-
         deflection_x_main *= self._reduced_to_phys
         deflection_y_main *= self._reduced_to_phys
-
         # add the main deflector to the deflection field
         angle_x = angle_x_foreground - deflection_x_main
         angle_y = angle_y_foreground - deflection_y_main
@@ -162,12 +161,19 @@ class MultiPlaneDecoupled(MultiPlane):
         deflection_x_background = self._alphax_interp_background(coordinates)
         deflection_y_background = self._alphay_interp_background(coordinates)
 
-        # combine deflections
-        alpha_background_x = angle_x + deflection_x_background
-        alpha_background_y = angle_y + deflection_y_background
+        if self._multiple_decoupled_planes:
 
-        # ray propagation to the source plane with the small angle approximation
-        beta_x = x / self._Ts + alpha_background_x * self._Tds / self._Ts
-        beta_y = y / self._Ts + alpha_background_y * self._Tds / self._Ts
+
+        else:
+
+
+
+            # combine deflections
+            alpha_background_x = angle_x + deflection_x_background
+            alpha_background_y = angle_y + deflection_y_background
+
+            # ray propagation to the source plane with the small angle approximation
+            beta_x = x / self._Ts + alpha_background_x * self._Tds / self._Ts
+            beta_y = y / self._Ts + alpha_background_y * self._Tds / self._Ts
 
         return beta_x, beta_y
