@@ -133,41 +133,19 @@ class MultiPlaneDecoupled(MultiPlane):
         :return: coordinates on the source plane
         """
         coordinates = (theta_x, theta_y)
-        # here we use an interpolation function to compute the comoving coordinates of the light rays
-        # where they hit the main lens plane at redshift z = z_main
-        x = self._x0_interp(coordinates)
-        y = self._y0_interp(coordinates)
-
-        theta_x_main = x / self._Td  # the angular coordinates of the ray positions
-        theta_y_main = y / self._Td  # the angular coordinates of the ray positions
-
-        # now we compute (via the interpolation functions) the deflection angles from all deflectors at z <= z_main, \
-        # exlucding the main deflector
-        angle_x_foreground = self._alphax_interp_foreground(coordinates)
-        angle_y_foreground = self._alphay_interp_foreground(coordinates)
+        theta_x_main = self._thetax_main_interp(coordinates)
+        theta_y_main = self._thetay_main_interp(coordinates)
 
         # compute the deflection angles from the main deflector
         deflection_x_main, deflection_y_main = self._main_deflector.alpha(
             theta_x_main, theta_y_main, kwargs_lens
         )
-
         deflection_x_main *= self._reduced_to_phys
         deflection_y_main *= self._reduced_to_phys
 
-        # add the main deflector to the deflection field
-        angle_x = angle_x_foreground - deflection_x_main
-        angle_y = angle_y_foreground - deflection_y_main
-
-        # now we compute (via the interpolation functions) the deflection angles from all deflectors at z > z_main
-        deflection_x_background = self._alphax_interp_background(coordinates)
-        deflection_y_background = self._alphay_interp_background(coordinates)
-
-        # combine deflections
-        alpha_background_x = angle_x + deflection_x_background
-        alpha_background_y = angle_y + deflection_y_background
-
         # ray propagation to the source plane with the small angle approximation
-        beta_x = x / self._Ts + alpha_background_x * self._Tds / self._Ts
-        beta_y = y / self._Ts + alpha_background_y * self._Tds / self._Ts
+        r = self._Tds / self._Ts
+        beta_x = self._beta_x_interp(coordinates) + r * ()
+        beta_y = self._beta_y_interp(coordinates) + r * ()
 
         return beta_x, beta_y
