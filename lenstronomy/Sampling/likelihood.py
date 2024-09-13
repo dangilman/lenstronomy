@@ -170,6 +170,7 @@ class LikelihoodModule(object):
         self._kwargs_flux_compute = kwargs_flux_compute
         self._check_bounds = check_bounds
         self._custom_logL_addition = custom_logL_addition
+        self._kwargs_model = kwargs_model
         self._kwargs_time_delay = {
             "time_delays_measured": time_delays_measured,
             "time_delays_uncertainties": time_delays_uncertainties,
@@ -377,7 +378,10 @@ class LikelihoodModule(object):
         # computing custom loglikelihood function first so that the full
         # likelihood evaluation is skipped if it returns -inf
         if self._custom_logL_addition is not None:
-            logL_cond = self._custom_logL_addition(**kwargs_return)
+            try:
+                logL_cond = self._custom_logL_addition(kwargs_model=self._kwargs_model, **kwargs_return)
+            except:
+                logL_cond = self._custom_logL_addition(**kwargs_return)
             logL += logL_cond
             if verbose is True:
                 print("custom added logL = %s" % logL_cond)

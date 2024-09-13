@@ -54,6 +54,7 @@ def create_class_instances(
     tracer_source_band=0,
     tracer_partition=None,
     tracer_type="LINEAR",
+    only_lens_model=False
 ):
     """
 
@@ -113,6 +114,7 @@ def create_class_instances(
     :type tracer_partition: None or list
     :param tracer_type: 'LINEAR' or 'LOG', to determine how tracers are summed between components
     :type tracer_type: string
+    :param only_lens_model: bool; if True, returns only an instance of the LensModel class
     :return: lens_model_class, source_model_class, lens_light_model_class, point_source_class, extinction_class
     """
     if lens_model_list is None:
@@ -163,6 +165,8 @@ def create_class_instances(
         decouple_multi_plane=decouple_multi_plane,
         kwargs_multiplane_model=kwargs_multiplane_model,
     )
+    if only_lens_model:
+        return lens_model_class
 
     if kwargs_multiplane_model_point_source is not None:
         lens_model_class_point_source = LensModel(

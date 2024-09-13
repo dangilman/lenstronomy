@@ -113,6 +113,9 @@ class TestClassCreator(object):
             extinction_class,
         ) = class_creator.create_class_instances(**self.kwargs_model_5)
         assert lens_model_class.lens_model_list[0] == "SIS"
+        lens_model = class_creator.create_class_instances(only_lens_model=True, **self.kwargs_model_5)
+        assert lens_model.lens_model_list[0] == "SIS"
+        assert lens_model.lens_model_list[1] == "SIS"
 
     def test_create_image_model(self):
         imageModel = class_creator.create_image_model(
