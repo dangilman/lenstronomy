@@ -216,11 +216,16 @@ class TestNumericsProfile(object):
         self.assert_differentials(lens_model, kwargs)
 
     def test_tnfw(self):
+
         kwargs = {"alpha_Rs": 0.1, "Rs": 5.0, "r_trunc": 7}
         lens_model = ["TNFW"]
         self.assert_differentials(lens_model, kwargs)
 
         kwargs = {"Rs": 2.0, "alpha_Rs": 1.0, "r_trunc": 7}
+        lens_model = ["TNFW"]
+        self.assert_differentials(lens_model, kwargs)
+
+        kwargs = {"Rs": 2.0, "alpha_Rs": 1.0, "r_trunc": 1.2}
         lens_model = ["TNFW"]
         self.assert_differentials(lens_model, kwargs)
 

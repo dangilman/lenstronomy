@@ -26,7 +26,7 @@ class CoreCollapsedHalo(LensProfileBase):
         self._profile_outer = TNFW()
         super(CoreCollapsedHalo, self).__init__()
 
-    def split_kwargs(self, center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner, alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer):
+    def _split_kwargs(self, center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner, alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer):
         """
 
         :param center_x:
@@ -60,7 +60,7 @@ class CoreCollapsedHalo(LensProfileBase):
         :param center_y:
         :return:
         """
-        kwargs_inner, kwargs_outer = self.split_kwargs(center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner,
+        kwargs_inner, kwargs_outer = self._split_kwargs(center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner,
                                                        alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer)
         f_x_inner, f_y_inner = self._profile_inner.derivatives(x, y, **kwargs_inner)
         f_x_outer, f_y_outer = self._profile_outer.derivatives(x, y, **kwargs_outer)
@@ -78,10 +78,10 @@ class CoreCollapsedHalo(LensProfileBase):
         :param center_y:
         :return:
         """
-        kwargs_inner, kwargs_outer = self.split_kwargs(center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner,
+        kwargs_inner, kwargs_outer = self._split_kwargs(center_x, center_y, Rs_inner, Rs_outer, alpha_Rs_inner,
                                                        alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer)
         f_xx_inner, f_xy_inner, f_yx_inner, f_yy_inner = self._profile_inner.hessian(x, y, **kwargs_inner)
-        f_xx_outer, f_xy_outer, f_yx_outer, f_yy_outer = self._profile_inner.hessian(x, y, **kwargs_outer)
+        f_xx_outer, f_xy_outer, f_yx_outer, f_yy_outer = self._profile_outer.hessian(x, y, **kwargs_outer)
         return f_xx_inner + f_xx_outer, f_xy_inner + f_xy_outer, f_yx_inner + f_yx_outer, f_yy_inner + f_yy_outer
 
     def density_lens(self, R, Rs_inner, Rs_outer, alpha_Rs_inner, alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer):
@@ -97,7 +97,7 @@ class CoreCollapsedHalo(LensProfileBase):
         :param gamma_outer:
         :return:
         """
-        kwargs_inner, kwargs_outer = self.split_kwargs(0.0, 0.0, Rs_inner, Rs_outer, alpha_Rs_inner,
+        kwargs_inner, kwargs_outer = self._split_kwargs(0.0, 0.0, Rs_inner, Rs_outer, alpha_Rs_inner,
                                                        alpha_Rs_outer, r_trunc, gamma_inner, gamma_outer)
         del kwargs_inner['center_x']
         del kwargs_inner['center_y']
@@ -125,7 +125,7 @@ class CoreCollapsedHalo(LensProfileBase):
         :param center_y:
         :return:
         """
-        rho0 = self._profile_inner.alpha2rho0(alpha_Rs_inner, Rs_inner)
+        rho0 = self._profile_inner.alpha2rho0(alpha_Rs_inner, Rs_inner, gamma_inner, gamma_outer)
         density_2d_inner = self._profile_inner.density_2d(x, y, Rs_inner, rho0,
                                                           gamma_inner, gamma_outer, center_x, center_y)
         rho0 = self._profile_outer.alpha2rho0(alpha_Rs_outer, Rs_outer)
@@ -163,8 +163,8 @@ class CoreCollapsedHalo(LensProfileBase):
         :param gamma_outer:
         :return:
         """
-        rho0 = self._profile_inner.alpha2rho0(alpha_Rs_inner, Rs_inner)
-        mass_2d_inner = self._profile_inner.mass_2d_lens(R, Rs_inner, rho0, gamma_inner, gamma_outer)
+        rho0 = self._profile_inner.alpha2rho0(alpha_Rs_inner, Rs_inner, gamma_inner, gamma_outer)
+        mass_2d_inner = self._profile_inner.mass_2d(R, Rs_inner, rho0, gamma_inner, gamma_outer)
         rho0 = self._profile_outer.alpha2rho0(alpha_Rs_outer, Rs_outer)
         mass_2d_outer = self._profile_outer.mass_2d(R, Rs_outer, rho0, r_trunc)
         return mass_2d_outer + mass_2d_inner
