@@ -13,6 +13,8 @@ _SUPPORTED_MODELS = [
     "CONST_MAG",
     "CONVERGENCE",
     "coreBURKERT",
+    "CORE_COLLAPSED_HALO",
+    "CORE_COLLAPSED_HALO_BH",
     "CORED_DENSITY",
     "CORED_DENSITY_2",
     "CORED_DENSITY_2_MST",
@@ -358,6 +360,14 @@ def lens_class(
         from lenstronomy.LensModel.Profiles.convergence import Convergence
 
         return Convergence(**profile_kwargs)
+    elif lens_type == "CORE_COLLAPSED_HALO":
+        from lenstronomy.LensModel.Profiles.core_collapsed_halo import CoreCollapsedHalo
+
+        return CoreCollapsedHalo()
+    elif lens_type == "CORE_COLLAPSED_HALO_BH":
+        from lenstronomy.LensModel.Profiles.core_collapsed_halo_bh import CoreCollapsedHaloBH
+
+        return CoreCollapsedHaloBH()
     elif lens_type == "coreBURKERT":
         from lenstronomy.LensModel.Profiles.coreBurkert import CoreBurkert
 
