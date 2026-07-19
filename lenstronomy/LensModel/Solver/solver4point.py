@@ -25,6 +25,8 @@ _SUPPORTED_LENS_MODEL_SOLVER = [
     "EPL_MULTIPOLE_M1M3M4",
     "EPL_MULTIPOLE_M3M4_ELL",
     "EPL_MULTIPOLE_M1M3M4_ELL",
+    "EPL_QGRAD",
+    "EPL_QGRAD_MULTIPOLE_M1M3M4",
     "BPL",
 ]
 
@@ -194,6 +196,8 @@ class Solver4Point(object):
             "EPL_MULTIPOLE_M3M4_ELL",
             "EPL_MULTIPOLE_M1M3M4",
             "EPL_MULTIPOLE_M1M3M4_ELL",
+            "EPL_QGRAD",
+            "EPL_QGRAD_MULTIPOLE_M1M3M4"
         ]:
             [theta_E, e1, e2, center_x, center_y, _] = x
             kwargs_list[0]["theta_E"] = theta_E
@@ -270,6 +274,8 @@ class Solver4Point(object):
             "EPL_MULTIPOLE_M1M3M4",
             "EPL_MULTIPOLE_M1M3M4_ELL",
             "EPL_MULTIPOLE_M1M3M4_ELL_SHEAR",
+            "EPL_QGRAD",
+            "EPL_QGRAD_MULTIPOLE_M1M3M4"
         ]:
             e1 = kwargs_list[0]["e1"]
             e2 = kwargs_list[0]["e2"]
@@ -338,6 +344,8 @@ class Solver4Point(object):
             "EPL_MULTIPOLE_M3M4_ELL",
             "EPL_MULTIPOLE_M1M3M4",
             "EPL_MULTIPOLE_M1M3M4_ELL",
+            "EPL_QGRAD",
+            "EPL_QGRAD_MULTIPOLE_M1M3M4"
         ]:
             kwargs_fixed["theta_E"] = kwargs_lens["theta_E"]
             kwargs_fixed["e1"] = kwargs_lens["e1"]

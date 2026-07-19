@@ -446,6 +446,14 @@ def lens_class(
         from lenstronomy.LensModel.Profiles.chameleon import DoubleChameleon
 
         return DoubleChameleon(**profile_kwargs)
+    elif lens_type == "EPL_QGRAD":
+        from lenstronomy.LensModel.Profiles.epl_qgrad import EPLQGradEllipse
+
+        return EPLQGradEllipse(**profile_kwargs)
+    elif lens_type == "EPL_QGRAD_MULTIPOLE_M1M3M4":
+        from lenstronomy.LensModel.Profiles.epl_qgrad import EPL_QGRAD_MULTIPOLE_M1M3M4
+
+        return EPL_QGRAD_MULTIPOLE_M1M3M4(**profile_kwargs)
     elif lens_type == "EPL":
         from lenstronomy.LensModel.Profiles.epl import EPL
 
