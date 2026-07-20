@@ -689,6 +689,10 @@ def lens_class(
         )
 
         return PointMassLogScaled(**profile_kwargs)
+    elif lens_type == "MULTI_HALO_BATCH":
+        from lenstronomy.LensModel.Profiles.multi_halo_batch import MultiHaloBatch
+
+        return MultiHaloBatch(**profile_kwargs)
     elif lens_type == "PSEUDO_DPL":
         from lenstronomy.LensModel.Profiles.pseudo_double_powerlaw import (
             PseudoDoublePowerlaw,

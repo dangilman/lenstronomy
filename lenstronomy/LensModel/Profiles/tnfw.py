@@ -258,7 +258,7 @@ class TNFW(LensProfileBase):
         R = np.maximum(R, self._s * Rs)
         x = R / Rs
         x = np.maximum(x, self._s)
-        tau = float(r_trunc) / Rs
+        tau = np.asarray(r_trunc) / Rs # for broadcasting
         gx = self._g(x, tau)
         a = 4 * rho0 * Rs * gx / x**2
         return a * ax_x, a * ax_y
@@ -281,7 +281,7 @@ class TNFW(LensProfileBase):
         """
         R = np.maximum(R, self._s * Rs)
         x = R / Rs
-        tau = float(r_trunc) * Rs**-1
+        tau = np.asarray(r_trunc) / Rs # for broadcasting
         gx = self._g(x, tau)
         Fx = self._F(x, tau)
         a = 2 * rho0 * Rs * (2 * gx / x**2 - Fx)
