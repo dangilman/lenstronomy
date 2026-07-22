@@ -33,11 +33,11 @@ class MultiHaloBatch(LensProfileBase):
 
     def derivatives(self, x, y, profile_name, kwargs_list):
         """
-        Vectorize deflection angle calls for identical halo classes at one lens plane. This will only work
+        Vectorize deflection angle calls for identical lens profile classes at one lens plane. This will only work
         if the lens profile is broadcast-safe.
         :param x: angular position (normally in units of arc seconds)
         :param y: angular position (normally in units of arc seconds)
-        :param profile_name: lens profile name ("TNFW", "POINT_MASS", etc)
+        :param profile_name: lens profile name
         :param kwargs_list: keyword arguments corresponding to each profile
         :return: deflection angles at coordinates (x, y)
         """
@@ -55,21 +55,27 @@ class MultiHaloBatch(LensProfileBase):
         fx, fy = base.derivatives(xr, yr, **kw)  # -> (N, M)
         return np.asarray(fx).sum(0).reshape(x.shape), np.asarray(fy).sum(0).reshape(x.shape)
 
-        # if try_broadcast:
-        #     try:
-        #         xr = x.reshape(1, -1); yr = y.reshape(1, -1)
-        #         kw = {}
-        #         for k in keys:
-        #             col = np.array([d[k] for d in kwargs_list], float)
-        #             # constant-across-halos params stay scalar (avoids tripping
-        #             # scalar guards like `if n == 3`); only varying params broadcast
-        #             kw[k] = col[:, None] if np.ptp(col) != 0 else float(col.flat[0])
-        #         fx, fy = base.derivatives(xr, yr, **kw)   # -> (N, M)
-        #         return np.asarray(fx).sum(0).reshape(x.shape), np.asarray(fy).sum(0).reshape(x.shape)
-        #     except Exception:
-        #         pass  # fall back
-        # ax = np.zeros_like(x); ay = np.zeros_like(y)
-        # for d in kwargs_list:
-        #     fx, fy = base.derivatives(x, y, **d)
-        #     ax = ax + fx; ay = ay + fy
-        # return ax, ay
+    def hessian(self, x, y, profile_name, kwargs_list, diff=1e-6):
+        """
+        Hessian (second derivatives) of the summed lens profiles at one lens plane, by central
+        finite differences of the batched deflection. This works for ANY base profile whose
+        derivatives() is broadcast-safe
+
+        :param x: angular position (arcsec)
+        :param y: angular position (arcsec)
+        :param profile_name: base lens profile name
+        :param kwargs_list: keyword arguments for each halo
+        :param diff: finite-difference step (arcsec)
+        :return: f_xx, f_xy, f_yx, f_yy summed over all halos at (x, y)
+        """
+        x = np.asarray(x, float);
+        y = np.asarray(y, float)
+        ax_xp, ay_xp = self.derivatives(x + diff, y, profile_name, kwargs_list)
+        ax_xm, ay_xm = self.derivatives(x - diff, y, profile_name, kwargs_list)
+        ax_yp, ay_yp = self.derivatives(x, y + diff, profile_name, kwargs_list)
+        ax_ym, ay_ym = self.derivatives(x, y - diff, profile_name, kwargs_list)
+        f_xx = (ax_xp - ax_xm) / (2 * diff)
+        f_yy = (ay_yp - ay_ym) / (2 * diff)
+        f_xy = (ax_yp - ax_ym) / (2 * diff)
+        f_yx = (ay_xp - ay_xm) / (2 * diff)
+        return f_xx, f_xy, f_yx, f_yy
