@@ -176,5 +176,61 @@ class TestCoreCollapsedHalo(object):
                                             self.kwargs_cc['gamma_outer'])
         npt.assert_almost_equal(mass1 + mass2, mass)
 
+    def test_cache_vs_no_cache(self):
+        """The interpolated (cached) deflection agrees with the exact evaluation
+        (interpol=False), for scalar and array coordinates."""
+        profile_cache = CoreCollapsedHalo(interpol=True)
+        profile_no_cache = CoreCollapsedHalo(interpol=False)
+
+        x, y = 1.5, -1.5
+        fx_c, fy_c = profile_cache.derivatives(x, y, **self.kwargs_cc)
+        fx_e, fy_e = profile_no_cache.derivatives(x, y, **self.kwargs_cc)
+        npt.assert_almost_equal(fx_c, fx_e)
+        npt.assert_almost_equal(fy_c, fy_e)
+        # scalar in -> scalar out for both paths
+        assert np.ndim(fx_c) == 0 and np.ndim(fx_e) == 0
+
+        x, y = 1.5, np.linspace(-1, 1, 10)
+        fx_c, fy_c = profile_cache.derivatives(x, y, **self.kwargs_cc)
+        fx_e, fy_e = profile_no_cache.derivatives(x, y, **self.kwargs_cc)
+        npt.assert_almost_equal(fx_c, fx_e)
+        npt.assert_almost_equal(fy_c, fy_e)
+
+    def test_cache_populated_and_reused(self):
+        """The spline cache is class-level: empty until an interpolated call,
+        never populated by the exact path, and shared across instances."""
+        CoreCollapsedHalo._inner_g_spline_cache.clear()
+        x, y = 1.5, np.linspace(-1, 1, 10)
+
+        # exact (interpol=False) must not populate the spline cache
+        CoreCollapsedHalo(interpol=False).derivatives(x, y, **self.kwargs_cc)
+        assert len(CoreCollapsedHalo._inner_g_spline_cache) == 0
+
+        # interpolated call populates it once for this slope pair
+        CoreCollapsedHalo(interpol=True).derivatives(x, y, **self.kwargs_cc)
+        assert len(CoreCollapsedHalo._inner_g_spline_cache) == 1
+
+        # a fresh instance reuses the shared cache (no new entry)
+        CoreCollapsedHalo(interpol=True).derivatives(x, y, **self.kwargs_cc)
+        assert len(CoreCollapsedHalo._inner_g_spline_cache) == 1
+
+        # a distinct slope pair adds a second entry
+        kwargs = dict(self.kwargs_cc, gamma_inner=2.0)
+        CoreCollapsedHalo(interpol=True).derivatives(x, y, **kwargs)
+        assert len(CoreCollapsedHalo._inner_g_spline_cache) == 2
+
+    def test_cache_out_of_grid_fallback(self):
+        """Points outside the interpolation grid fall back to the exact form,
+        so a tiny Rs_inner (huge R/Rs) still matches the exact profile."""
+        profile_cache = CoreCollapsedHalo(interpol=True)
+        profile_no_cache = CoreCollapsedHalo(interpol=False)
+        kwargs = dict(self.kwargs_cc, Rs_inner=1e-3)
+        x, y = 1.5, np.linspace(-1, 1, 10)
+        fx_c, fy_c = profile_cache.derivatives(x, y, **kwargs)
+        fx_e, fy_e = profile_no_cache.derivatives(x, y, **kwargs)
+        npt.assert_almost_equal(fx_c, fx_e)
+        npt.assert_almost_equal(fy_c, fy_e)
+
+
 if __name__ == "__main__":
     pytest.main()
