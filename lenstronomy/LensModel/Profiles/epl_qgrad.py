@@ -50,8 +50,8 @@ through a bicubic spline in (log10 R, phi) -- the deflection field is C^2 in
 sky coordinates, giving smooth hessians and magnifications
 (|delta mu / mu| ~ 1e-4 at quad-image magnifications).
 
-Validity ranges (table): gamma in [1.6, 2.5], q0 in [0.3, 1.0],
-|dq| <= 0.2, |dphi| <= 0.2, R in [0.01, 10] theta_E (clamped to edge
+Validity ranges (table): gamma in [1.6, 2.5], q0 in [0.25, 1.0],
+|dq| <= 0.3, |dphi| <= 0.3, R in [0.01, 10] theta_E (clamped to edge
 values outside in log R; the log R grid is densest at 0.25 - 4 theta_E).
 """
 
@@ -59,7 +59,7 @@ import os
 
 import numpy as np
 from scipy.interpolate import RectBivariateSpline
-
+import lenstronomy.Util.param_util as param_util
 from lenstronomy.LensModel.Profiles.base_profile import LensProfileBase
 
 __all__ = ["EPLQGrad", "EPLQGradEllipse", "EPL_QGRAD_MULTIPOLE_M1M3M4"]
@@ -138,8 +138,8 @@ class _GInterp(object):
         self._logR = t["logR"]
         self._phi = t["phi"]  # [0, pi]; g is pi-periodic (point symmetry)
         self._pgrids = (t["q0"], t["dq"], t["dphi"], t["gamma"])
-        self._g = (t["g_re"].astype(np.float64)
-                   + 1j * t["g_im"].astype(np.float64))
+        self._g = (t["g_re"].astype(np.float32) +
+                   1j * t["g_im"].astype(np.float32))
         self._cache = {}
         self._cache_size = cache_size
         npad = 4
@@ -193,11 +193,11 @@ class EPLQGrad(LensProfileBase):
     profile_name = "EPL_QGRAD"
     param_names = ["theta_E", "gamma", "q0", "dq", "dphi", "phi_G",
                    "center_x", "center_y"]
-    lower_limit_default = {"theta_E": 0.0, "gamma": 1.6, "q0": 0.3,
-                           "dq": -0.2, "dphi": -0.2, "phi_G": -np.pi,
+    lower_limit_default = {"theta_E": 0.0, "gamma": 1.6, "q0": 0.25,
+                           "dq": -0.3, "dphi": -0.3, "phi_G": -np.pi,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "q0": 1.0,
-                           "dq": 0.2, "dphi": 0.2, "phi_G": np.pi,
+                           "dq": 0.3, "dphi": 0.3, "phi_G": np.pi,
                            "center_x": 100, "center_y": 100}
 
     def __init__(self, table_path=_DEFAULT_TABLE):
@@ -223,6 +223,7 @@ class EPLQGrad(LensProfileBase):
         :param center_y: deflector y-center [arcsec]
         :return: alpha_x, alpha_y
         """
+        q0 = float(np.clip(q0, self._interp._pgrids[0][0], 1.0))
         scalar = np.ndim(x) == 0
         x = np.atleast_1d(np.asarray(x, dtype=float))
         y = np.atleast_1d(np.asarray(y, dtype=float))
@@ -241,6 +242,7 @@ class EPLQGrad(LensProfileBase):
                  center_x=0, center_y=0):
         """Lensing potential via psi(x) = int_0^1 dt x . alpha(t x), with
         psi(center) = 0 (only potential differences are meaningful)."""
+        q0 = float(np.clip(q0, self._interp._pgrids[0][0], 1.0))
         scalar = np.ndim(x) == 0
         x = np.atleast_1d(np.asarray(x, dtype=float))
         y = np.atleast_1d(np.asarray(y, dtype=float))
@@ -290,33 +292,27 @@ class EPLQGradEllipse(EPLQGrad):
     param_names = ["theta_E", "gamma", "e1", "e2", "dq", "dphi",
                    "center_x", "center_y"]
     lower_limit_default = {"theta_E": 0.0, "gamma": 1.6, "e1": -0.5,
-                           "e2": -0.5, "dq": -0.2, "dphi": -0.2,
+                           "e2": -0.5, "dq": -0.3, "dphi": -0.3,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "e1": 0.5,
-                           "e2": 0.5, "dq": 0.2, "dphi": 0.2,
+                           "e2": 0.5, "dq": 0.3, "dphi": 0.3,
                            "center_x": 100, "center_y": 100}
-
-    @staticmethod
-    def _convert(e1, e2):
-        from lenstronomy.Util.param_util import ellipticity2phi_q
-        phi_G, q0 = ellipticity2phi_q(e1, e2)
-        return q0, phi_G
 
     def derivatives(self, x, y, theta_E, gamma, e1, e2, dq, dphi,
                     center_x=0, center_y=0):
-        q0, phi_G = self._convert(e1, e2)
+        phi_G, q0 = param_util.ellipticity2phi_q(e1, e2)
         return super().derivatives(
             x, y, theta_E, gamma, q0, dq, dphi, phi_G, center_x, center_y)
 
     def function(self, x, y, theta_E, gamma, e1, e2, dq, dphi,
                  center_x=0, center_y=0):
-        q0, phi_G = self._convert(e1, e2)
+        phi_G, q0 = param_util.ellipticity2phi_q(e1, e2)
         return super().function(
             x, y, theta_E, gamma, q0, dq, dphi, phi_G, center_x, center_y)
 
     def hessian(self, x, y, theta_E, gamma, e1, e2, dq, dphi,
                 center_x=0, center_y=0, diff=1e-4):
-        q0, phi_G = self._convert(e1, e2)
+        phi_G, q0 = param_util.ellipticity2phi_q(e1, e2)
         return super().hessian(
             x, y, theta_E, gamma, q0, dq, dphi, phi_G, center_x, center_y,
             diff=diff)
@@ -362,8 +358,8 @@ class EPL_QGRAD_MULTIPOLE_M1M3M4(LensProfileBase):
         "gamma": 1.6,
         "e1": -0.5,
         "e2": -0.5,
-        "dq": -0.2,
-        "dphi": -0.2,
+        "dq": -0.3,
+        "dphi": -0.3,
         "center_x": -100,
         "center_y": -100,
         "a1_a": -0.2,
@@ -378,8 +374,8 @@ class EPL_QGRAD_MULTIPOLE_M1M3M4(LensProfileBase):
         "gamma": 2.5,
         "e1": 0.5,
         "e2": 0.5,
-        "dq": 0.2,
-        "dphi": 0.2,
+        "dq": 0.3,
+        "dphi": 0.3,
         "center_x": 100,
         "center_y": 100,
         "a1_a": 0.2,
@@ -455,8 +451,9 @@ class EPL_QGRAD_MULTIPOLE_M1M3M4(LensProfileBase):
         :param center_y: center of the profile
         :return: the keyword arguments for the joint profile
         """
-        import lenstronomy.Util.param_util as param_util
         phi, q = param_util.ellipticity2phi_q(e1, e2)
+        q = max(q, float(self._qgrad._interp._pgrids[0][0]))
+        e1, e2 = param_util.phi_q2_ellipticity(phi, q)
         kwargs_qgrad = {
             "theta_E": theta_E,
             "gamma": gamma,
