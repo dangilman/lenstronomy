@@ -65,36 +65,50 @@ class TNFW(LensProfileBase):
 
         return f_
 
-    def _L(self, x, tau):
+    def _L(self, x, tau, s=None):
         """Logarithm that appears frequently.
 
         :param x: r/Rs
         :param tau: t/Rs
+        :param s: optional precomputed sqrt(tau**2 + x**2), to avoid recomputing it
+            when the caller already has it (internal fast path)
         :return:
         """
         x = np.maximum(x, self._s)
-        return np.log(x * (tau + np.sqrt(tau**2 + x**2)) ** -1)
+        if s is None:
+            s = np.sqrt(tau * tau + x * x)
+        return np.log(x / (tau + s))
 
-    def F(self, x):
+    def F(self, x, x2=None):
         """Classic NFW function in terms of arctanh and arctan.
 
         :param x: r/Rs
+        :param x2: optional precomputed x**2 (internal fast path). If given, ``x`` is
+            assumed to already be clipped at self._s.
         :return:
         """
 
         if isinstance(x, np.ndarray):
-            x = np.maximum(x, self._s)
-            nfwvals = np.zeros_like(x)
-            inds1 = np.where(x < 1)
-            inds2 = np.where(x > 1)
-            inds3 = np.where(x == 1)
-            nfwvals[inds1] = (1 - x[inds1] ** 2) ** -0.5 * np.arctanh(
-                (1 - x[inds1] ** 2) ** 0.5
-            )
-            nfwvals[inds2] = (x[inds2] ** 2 - 1) ** -0.5 * np.arctan(
-                (x[inds2] ** 2 - 1) ** 0.5
-            )
-            nfwvals[inds3] = 1
+            if x2 is None:
+                x = np.maximum(x, self._s)
+                x2 = x * x
+            nfwvals = np.ones_like(x, order="C")
+            x_flat = np.reshape(x, -1)
+            x2_flat = np.reshape(x2, -1)
+            out_flat = nfwvals.reshape(-1)
+
+            inds1 = np.flatnonzero(x2_flat < 1)
+            if inds1.size:
+                x1 = x_flat[inds1]
+                u = np.sqrt((1 - x1) * (1 + x1))
+                out_flat[inds1] = 0.5 * np.log1p(2 * u * (1 + u) / (x1 * x1)) / u
+
+            inds2 = np.flatnonzero(x2_flat > 1)
+            if inds2.size:
+                xh = x_flat[inds2]
+                w = np.sqrt((xh - 1) * (xh + 1))
+                out_flat[inds2] = np.arctan(w) / w
+
             return nfwvals
 
         elif isinstance(x, float) or isinstance(x, int):
@@ -104,9 +118,11 @@ class TNFW(LensProfileBase):
             elif x == 0:
                 return 0
             elif x < 1:
-                return (1 - x**2) ** -0.5 * np.arctanh((1 - x**2) ** 0.5)
+                u = ((1 - x) * (1 + x)) ** 0.5
+                return 0.5 * np.log1p(2 * u * (1 + u) / (x * x)) / u
             else:
-                return (x**2 - 1) ** -0.5 * np.arctan((x**2 - 1) ** 0.5)
+                w = ((x - 1) * (x + 1)) ** 0.5
+                return np.arctan(w) / w
 
     def derivatives(self, x, y, Rs, alpha_Rs, r_trunc, center_x=0, center_y=0):
         """Returns df/dx and df/dy of the function (integral of TNFW), which are the
@@ -124,8 +140,7 @@ class TNFW(LensProfileBase):
         rho0_input = self.alpha2rho0(alpha_Rs=alpha_Rs, Rs=Rs)
         x_ = x - center_x
         y_ = y - center_y
-        R = np.sqrt(x_**2 + y_**2)
-        R = np.maximum(R, self._s * Rs)
+        R = np.sqrt(x_ * x_ + y_ * y_)
         f_x, f_y = self.tnfw_alpha(R, Rs, rho0_input, r_trunc, x_, y_)
         return f_x, f_y
 
@@ -190,7 +205,7 @@ class TNFW(LensProfileBase):
         y_ = y - center_y
         R = np.sqrt(x_**2 + y_**2)
         x = R * Rs**-1
-        tau = float(r_trunc) * Rs**-1
+        tau = np.asarray(r_trunc) / Rs
         Fx = self._F(x, tau)
         return 2 * rho0 * Rs * Fx
 
@@ -236,7 +251,7 @@ class TNFW(LensProfileBase):
         """
         x = R / Rs
         x = np.maximum(x, self._s)
-        tau = float(r_trunc) / Rs
+        tau = np.asarray(r_trunc) / Rs
         hx = self._h(x, tau)
         return 2 * rho0 * Rs**3 * hx
 
@@ -255,12 +270,11 @@ class TNFW(LensProfileBase):
         :type axis: same as R
         :return:
         """
-        R = np.maximum(R, self._s * Rs)
-        x = R / Rs
-        x = np.maximum(x, self._s)
-        tau = np.asarray(r_trunc) / Rs # for broadcasting
-        gx = self._g(x, tau)
-        a = 4 * rho0 * Rs * gx / x**2
+        x = np.maximum(R / Rs, self._s)
+        x2 = x * x
+        tau = np.asarray(r_trunc) / Rs
+        gx = self._g(x, tau, x2)
+        a = 4 * rho0 * Rs * gx / x2
         return a * ax_x, a * ax_y
 
     def tnfw_gamma(self, R, Rs, rho0, r_trunc, ax_x, ax_y):
@@ -281,11 +295,16 @@ class TNFW(LensProfileBase):
         """
         R = np.maximum(R, self._s * Rs)
         x = R / Rs
-        tau = np.asarray(r_trunc) / Rs # for broadcasting
-        gx = self._g(x, tau)
+        x2 = x * x
+        tau = np.asarray(r_trunc) / Rs
+        gx = self._g(x, tau, x2)
         Fx = self._F(x, tau)
-        a = 2 * rho0 * Rs * (2 * gx / x**2 - Fx)
-        return a * (ax_y**2 - ax_x**2) / R**2, -a * 2 * (ax_x * ax_y) / R**2
+        a = 2 * rho0 * Rs * (2 * gx / x2 - Fx)
+        inv_R2 = 1 / (R * R)
+        return (
+            a * (ax_y * ax_y - ax_x * ax_x) * inv_R2,
+            -2 * a * (ax_x * ax_y) * inv_R2,
+        )
 
     def mass_2d(self, R, Rs, rho0, r_trunc):
         """Analytic solution of the projection integral (convergence)
@@ -310,15 +329,25 @@ class TNFW(LensProfileBase):
         :param X: R/Rs
         :type X: float >0
         """
-        t2 = tau**2
+        t2 = tau * tau
         X = np.maximum(X, self._s)
-        _F = self.F(X)
-        a = t2 * (t2 + 1) ** -2
+        X2 = X * X
+        _F = self.F(X, X2)
+        a = t2 / (t2 + 1) ** 2
+        s = np.sqrt(t2 + X2)
         if isinstance(X, np.ndarray):
             # b = (t2 + 1) * (X ** 2 - 1) ** -1 * (1 - _F)
-            b = np.ones_like(X)
-            b[X == 1] = (t2 + 1) * 1.0 / 3
-            b[X != 1] = (t2 + 1) * (X[X != 1] ** 2 - 1) ** -1 * (1 - _F[X != 1])
+            #
+            # NOTE: the previous masked-assignment form
+            #     b = np.ones_like(X); b[X == 1] = ...; b[X != 1] = ...
+            # raised a ValueError whenever tau was an array (as it is when
+            # r_trunc is passed as an ndarray for broadcasting), because the
+            # right-hand side then had tau's shape rather than the mask's.
+            # np.where broadcasts correctly, and also avoids the gather/scatter.
+            den = X2 - 1
+            eq = den == 0
+            safe_den = np.where(eq, 1.0, den)
+            b = np.where(eq, (t2 + 1) * 1.0 / 3, (t2 + 1) * (1 - _F) / safe_den)
 
         elif isinstance(X, float) or isinstance(X, int):
             if X == 1:
@@ -332,29 +361,37 @@ class TNFW(LensProfileBase):
             )
 
         c = 2 * _F
-        d = -np.pi * (t2 + X**2) ** -0.5
-        e = (t2 - 1) * (tau * (t2 + X**2) ** 0.5) ** -1 * self._L(X, tau)
+        d = -np.pi / s
+        e = (t2 - 1) / (tau * s) * self._L(X, tau, s)
         result = a * (b + c + d + e)
 
         return result
 
-    def _g(self, x, tau):
+    def _g(self, x, tau, x2=None):
         """Analytic solution of integral for NFW profile to compute deflection angel and
         gamma.
 
         :param x: R/Rs
         :type x: float >0
+        :param tau: r_trunc/Rs
+        :param x2: optional precomputed x**2 (internal fast path). If given, ``x`` is
+            assumed to already be clipped at self._s.
         """
-        x = np.maximum(x, self._s)
+        if x2 is None:
+            x = np.maximum(x, self._s)
+            x2 = x * x
+
+        t2 = tau * tau
+        s = np.sqrt(t2 + x2)
+        Lx = np.log(x / (tau + s))
         return (
-            tau**2
-            * (tau**2 + 1) ** -2
+            t2
+            / (t2 + 1) ** 2
             * (
-                (tau**2 + 1 + 2 * (x**2 - 1)) * self.F(x)
+                (t2 - 1 + 2 * x2) * self.F(x, x2)
                 + tau * np.pi
-                + (tau**2 - 1) * np.log(tau)
-                + np.sqrt(tau**2 + x**2)
-                * (-np.pi + self._L(x, tau) * (tau**2 - 1) * tau**-1)
+                + (t2 - 1) * np.log(tau)
+                + s * (-np.pi + Lx * (t2 - 1) / tau)
             )
         )
 
@@ -388,17 +425,15 @@ class TNFW(LensProfileBase):
         """
         x = np.maximum(x, self._s)
 
-        u = x**2
-        t2 = tau**2
-        Lx = self._L(x, tau)
-        Fx = self.F(x)
+        u = x * x
+        t2 = tau * tau
+        s = np.sqrt(t2 + u)
+        Lx = self._L(x, tau, s)
+        Fx = self.F(x, u)
 
         return (t2 + 1) ** -2 * (
-            2
-            * t2
-            * np.pi
-            * (tau - (t2 + u) ** 0.5 + tau * np.log(tau + (t2 + u) ** 0.5))
-            + 2 * (t2 - 1) * tau * (t2 + u) ** 0.5 * Lx
+            2 * t2 * np.pi * (tau - s + tau * np.log(tau + s))
+            + 2 * (t2 - 1) * tau * s * Lx
             + t2 * (t2 - 1) * Lx**2
             + 4 * t2 * (u - 1) * Fx
             + t2 * (t2 - 1) * self._cos_function(x)
