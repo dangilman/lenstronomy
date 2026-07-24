@@ -193,7 +193,7 @@ class EPLQGrad(LensProfileBase):
     profile_name = "EPL_QGRAD"
     param_names = ["theta_E", "gamma", "q0", "dq", "dphi", "phi_G",
                    "center_x", "center_y"]
-    lower_limit_default = {"theta_E": 0.0, "gamma": 1.6, "q0": 0.25,
+    lower_limit_default = {"theta_E": 0.001, "gamma": 1.6, "q0": 0.25,
                            "dq": -0.3, "dphi": -0.3, "phi_G": -np.pi,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "q0": 1.0,
@@ -291,7 +291,7 @@ class EPLQGradEllipse(EPLQGrad):
     profile_name = "EPL_QGRAD_ELL"
     param_names = ["theta_E", "gamma", "e1", "e2", "dq", "dphi",
                    "center_x", "center_y"]
-    lower_limit_default = {"theta_E": 0.0, "gamma": 1.6, "e1": -0.5,
+    lower_limit_default = {"theta_E": 0.001, "gamma": 1.6, "e1": -0.5,
                            "e2": -0.5, "dq": -0.3, "dphi": -0.3,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "e1": 0.5,
@@ -354,7 +354,7 @@ class EPL_QGRAD_MULTIPOLE_M1M3M4(LensProfileBase):
         "delta_phi_m4",
     ]
     lower_limit_default = {
-        "theta_E": 0,
+        "theta_E": 0.001,
         "gamma": 1.6,
         "e1": -0.5,
         "e2": -0.5,

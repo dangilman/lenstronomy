@@ -56,6 +56,7 @@ _SUPPORTED_MODELS = [
     "HESSIAN",
     "INTERPOL",
     "INTERPOL_SCALED",
+    "KING",
     "RADIAL_INTERPOL",
     "LOS",
     "LOS_MINIMAL",
@@ -573,7 +574,10 @@ def lens_class(
     elif lens_type == "INTERPOL_SCALED":
         from lenstronomy.LensModel.Profiles.interpol import InterpolScaled
 
-        return InterpolScaled(**profile_kwargs)
+    elif lens_type == "KING":
+        from lenstronomy.LensModel.Profiles.king import King
+
+        return King(**profile_kwargs)
     elif lens_type == "LOS":
         from lenstronomy.LensModel.LineOfSight.LOSModels.los import LOS
 
