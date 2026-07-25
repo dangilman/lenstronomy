@@ -21,6 +21,7 @@ class MultiHaloBatch(LensProfileBase):
     """
     profile_name = "MULTI_HALO_BATCH"
     param_names = ["profile_name", "kwargs_list"]
+    max_elements = 2000000
 
     def __init__(self):
         self._cache = {}
@@ -32,9 +33,13 @@ class MultiHaloBatch(LensProfileBase):
         return self._cache[name]
 
     def derivatives(self, x, y, profile_name, kwargs_list):
-        """
-        Vectorize deflection angle calls for identical lens profile classes at one lens plane. This will only work
-        if the lens profile is broadcast-safe.
+        """Vectorize deflection angle calls for identical lens profile classes at one
+        lens plane. This will only work if the lens profile is broadcast-safe.
+
+        The point axis is processed in blocks so that the (N_halos, points)
+        working set stays bounded; the halo sum is unchanged, so results are
+        bitwise identical to evaluating every point at once.
+
         :param x: angular position (normally in units of arc seconds)
         :param y: angular position (normally in units of arc seconds)
         :param profile_name: lens profile name
@@ -42,18 +47,45 @@ class MultiHaloBatch(LensProfileBase):
         :return: deflection angles at coordinates (x, y)
         """
         base = self._base(profile_name)
-        x = np.asarray(x, float); y = np.asarray(y, float)
-        keys = list(kwargs_list[0].keys()); N = len(kwargs_list)
-        xr = x.reshape(1, -1);
-        yr = y.reshape(1, -1)
+        x = np.asarray(x, float)
+        y = np.asarray(y, float)
+        shape = x.shape
+        x_flat = x.reshape(-1)
+        y_flat = y.reshape(-1)
+        n_points = x_flat.size
+
+        keys = list(kwargs_list[0].keys())
+        n_halos = len(kwargs_list)
         kw = {}
         for k in keys:
             col = np.array([d[k] for d in kwargs_list], float)
             # constant-across-halos params stay scalar (avoids tripping
             # scalar guards like `if n == 3`); only varying params broadcast
             kw[k] = col[:, None] if np.ptp(col) != 0 else float(col.flat[0])
-        fx, fy = base.derivatives(xr, yr, **kw)  # -> (N, M)
-        return np.asarray(fx).sum(0).reshape(x.shape), np.asarray(fy).sum(0).reshape(x.shape)
+
+        block = max(1, int(self.max_elements // max(n_halos, 1)))
+        if block >= n_points:
+            # small enough to do in one shot -- identical to the original path
+            fx, fy = base.derivatives(
+                x_flat.reshape(1, -1), y_flat.reshape(1, -1), **kw
+            )
+            return (
+                np.asarray(fx).sum(0).reshape(shape),
+                np.asarray(fy).sum(0).reshape(shape),
+            )
+
+        out_x = np.empty(n_points)
+        out_y = np.empty(n_points)
+        for start in range(0, n_points, block):
+            stop = min(start + block, n_points)
+            fx, fy = base.derivatives(
+                x_flat[start:stop].reshape(1, -1),
+                y_flat[start:stop].reshape(1, -1),
+                **kw
+            )
+            out_x[start:stop] = np.asarray(fx).sum(0)
+            out_y[start:stop] = np.asarray(fy).sum(0)
+        return out_x.reshape(shape), out_y.reshape(shape)
 
     def hessian(self, x, y, profile_name, kwargs_list, diff=1e-6):
         """
