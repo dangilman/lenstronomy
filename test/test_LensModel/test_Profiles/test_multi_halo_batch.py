@@ -289,6 +289,15 @@ class TestMultiHaloBatchMultiPlane(object):
         npt.assert_almost_equal(ax_batch, ax_exact, decimal=8)
         npt.assert_almost_equal(ay_batch, ay_exact, decimal=8)
 
+    def test_identical_halos_sum():
+        b = MultiHaloBatch()
+        k = {'theta_E': 0.3, 'center_x': 0.0, 'center_y': 0.0}
+        x = np.linspace(0.5, 1.5, 5);
+        y = np.zeros(5)
+        one = lens_class('SIS').derivatives(x, y, **k)
+        got = b.derivatives(x, y, 'SIS', [k] * 4)
+        np.testing.assert_allclose(got[0], 4 * one[0], rtol=0, atol=1e-14)
+        np.testing.assert_allclose(got[1], 4 * one[1], rtol=0, atol=1e-14)
 
 if __name__ == "__main__":
     pytest.main()

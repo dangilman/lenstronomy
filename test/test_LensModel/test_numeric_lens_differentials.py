@@ -429,6 +429,15 @@ class TestNumericsProfile(object):
         lens_model = ["CONST_MAG"]
         self.assert_differentials(lens_model, kwargs)
 
+    def test_king(self):
+        kwargs = {"sigma0": 0.1, "r_h": 3.0, "c": 1.5, "center_x": 0.0, "center_y": 0.0}
+        lens_model = ["KING"]
+        self.assert_differentials(lens_model, kwargs)
+
+        kwargs = {"sigma0": 0.1, "c": 1.6, "r_core": 1.5, "center_x": 0.0, "center_y": 0.0}
+        lens_model = ["KINGRC"]
+        self.assert_differentials(lens_model, kwargs)
+
     def test_nie_potential(self):
         kwargs = {"theta_E": 2.0, "theta_c": 1.0, "e1": 0.1, "e2": 0.1}
         lens_model = ["NIE_POTENTIAL"]

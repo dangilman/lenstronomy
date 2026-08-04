@@ -1,7 +1,6 @@
 __author__ = "dangilman"
 
 from lenstronomy.LensModel.Profiles.king import King, KingRc
-
 import numpy as np
 from scipy.integrate import quad
 import pytest
