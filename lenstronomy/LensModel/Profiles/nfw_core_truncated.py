@@ -247,26 +247,6 @@ class TNFWC(LensProfileBase):
         prefactor = t**2 / (t**2 - 1)
         return prefactor * (self._u1(x, b, 1.0) - self._u1(x, b, t))
 
-    def _g(self, x, b, t):
-        """Analytic solution of integral for NFW profile to compute deflection angle and
-        gamma.
-
-        :param X: R/Rs
-        :type X: float >0
-        :param b: core radius divided by the scale radius
-        :param t: truncation radius divided by the scale radius
-        :return: solution of the integral over projected mass
-        """
-        if b == t:
-            t += 1e-3
-        prefactor = t**2 / (t**2 - 1)
-        return prefactor * (
-            -self._u2(x, b, t)
-            + self._u2(0.0, b, t)
-            + self._u2(x, b, 1.0)
-            - self._u2(0.0, b, 1.0)
-        )
-
     @staticmethod
     def _u1(x, b, t):
         """
@@ -278,13 +258,42 @@ class TNFWC(LensProfileBase):
         t2x2 = t**2 + x**2
         b2x2 = b**2 + x**2
         b2mt2 = b**2 - t**2
-        if t > b:
-            func = np.arccosh
-            b2mt2 *= -1
-        else:
-            func = np.arccos
         arg = np.sqrt(t2x2 / b2x2)
-        return func(arg) / np.sqrt(t2x2 * b2mt2)
+        gt = t > b
+        if np.ndim(gt) == 0:
+            if gt:
+                return np.arccosh(arg) / np.sqrt(t2x2 * -b2mt2)
+            return np.arccos(arg) / np.sqrt(t2x2 * b2mt2)
+        # vectorized branch: mask each arg into its valid domain so the
+        # unused side of the where() does not generate nan warnings
+        b2mt2 = np.where(gt, -b2mt2, b2mt2)
+        num = np.where(gt,
+                       np.arccosh(np.where(gt, arg, 1.0)),
+                       np.arccos(np.where(gt, 1.0, arg)))
+        return num / np.sqrt(t2x2 * b2mt2)
+
+    def _g(self, x, b, t):
+        """Analytic solution of integral for NFW profile to compute deflection angle and
+        gamma.
+
+        :param X: R/Rs
+        :type X: float >0
+        :param b: core radius divided by the scale radius
+        :param t: truncation radius divided by the scale radius
+        :return: solution of the integral over projected mass
+        """
+        if np.ndim(b) == 0 and np.ndim(t) == 0:
+            if b == t:
+                t = t + 1e-3
+        else:
+            t = np.where(b == t, t + 1e-3, t)
+        prefactor = t**2 / (t**2 - 1)
+        return prefactor * (
+            -self._u2(x, b, t)
+            + self._u2(0.0, b, t)
+            + self._u2(x, b, 1.0)
+            - self._u2(0.0, b, 1.0)
+        )
 
     def _u2(self, x, b, t):
         """
