@@ -7,7 +7,7 @@ twist).
 Self-contained lenstronomy profile module. To install into lenstronomy:
 
 1. Copy this file to lenstronomy/LensModel/Profiles/epl_qgrad.py and place
-   the precomputed table 'epl_qgrad_table.npz' in the same directory (or
+   the precomputed table 'epl_qgrad_table_dq53_dphi33.npz' in the same directory (or
    point to it with profile_kwargs {'table_path': ...} or the environment
    variable EPL_QGRAD_TABLE).
 2. In lenstronomy/LensModel/profile_list_base.py add the strings
@@ -26,7 +26,7 @@ the SIE with the same theta_E; dq = dphi = 0 is the EPL):
 
     kappa(x, y) = (3 - gamma)/2 * (theta_E / m)^(gamma - 1)
     q(m) u^2 + v^2 / q(m) = m^2,   (u + iv) = exp(-i psi(m)) (x' + iy')
-    q(m)   = clip(q0 + dq * ln(m / theta_E), 0.2, 1.0)
+    q(m)   = clip(q0 + dq * ln(m / theta_E), 0.30, 1.0)
     psi(m) = dphi * ln(m / theta_E)
 
 where (x', y') is the frame rotated by phi_G. q0 is the axis ratio of the
@@ -50,9 +50,13 @@ through a bicubic spline in (log10 R, phi) -- the deflection field is C^2 in
 sky coordinates, giving smooth hessians and magnifications
 (|delta mu / mu| ~ 1e-4 at quad-image magnifications).
 
-Validity ranges (table): gamma in [1.6, 2.5], q0 in [0.25, 1.0],
-|dq| <= 0.3, |dphi| <= 0.3, R in [0.01, 10] theta_E (clamped to edge
+Validity ranges (table): gamma in [1.6, 2.5], q0 in [0.30, 1.0],
+dq in [-0.5, 0.3], |dphi| <= 0.3, R in [0.01, 10] theta_E (clamped to edge
 values outside in log R; the log R grid is densest at 0.25 - 4 theta_E).
+The local axis ratio is floored at 0.30 so that isodensity contours stay
+nested over this range (contours cross where q < |dq|/2 without twist);
+q0 below 0.30 is clipped to 0.30. Parameters outside the table are clamped
+to its edges.
 """
 
 import os
@@ -67,7 +71,7 @@ __all__ = ["EPLQGrad", "EPLQGradEllipse", "EPL_QGRAD_MULTIPOLE_M1M3M4"]
 _DEFAULT_TABLE = os.environ.get(
     "EPL_QGRAD_TABLE",
     os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "epl_qgrad_table.npz"))
+                 "epl_qgrad_table_dq53_dphi33.npz"))
 
 
 def _sqrt_branch(w, c):
@@ -193,8 +197,8 @@ class EPLQGrad(LensProfileBase):
     profile_name = "EPL_QGRAD"
     param_names = ["theta_E", "gamma", "q0", "dq", "dphi", "phi_G",
                    "center_x", "center_y"]
-    lower_limit_default = {"theta_E": 0.001, "gamma": 1.6, "q0": 0.25,
-                           "dq": -0.3, "dphi": -0.3, "phi_G": -np.pi,
+    lower_limit_default = {"theta_E": 0.001, "gamma": 1.6, "q0": 0.30,
+                           "dq": -0.5, "dphi": -0.3, "phi_G": -np.pi,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "q0": 1.0,
                            "dq": 0.3, "dphi": 0.3, "phi_G": np.pi,
@@ -292,7 +296,7 @@ class EPLQGradEllipse(EPLQGrad):
     param_names = ["theta_E", "gamma", "e1", "e2", "dq", "dphi",
                    "center_x", "center_y"]
     lower_limit_default = {"theta_E": 0.001, "gamma": 1.6, "e1": -0.5,
-                           "e2": -0.5, "dq": -0.3, "dphi": -0.3,
+                           "e2": -0.5, "dq": -0.5, "dphi": -0.3,
                            "center_x": -100, "center_y": -100}
     upper_limit_default = {"theta_E": 100.0, "gamma": 2.5, "e1": 0.5,
                            "e2": 0.5, "dq": 0.3, "dphi": 0.3,
@@ -358,7 +362,7 @@ class EPL_QGRAD_MULTIPOLE_M1M3M4(LensProfileBase):
         "gamma": 1.6,
         "e1": -0.5,
         "e2": -0.5,
-        "dq": -0.3,
+        "dq": -0.5,
         "dphi": -0.3,
         "center_x": -100,
         "center_y": -100,
